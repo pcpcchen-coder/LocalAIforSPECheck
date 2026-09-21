@@ -145,6 +145,8 @@ python -m pytest
 |---|---|
 | [WINDOWS_PORTABLE.md](docs/WINDOWS_PORTABLE.md) | Windows 完整 ZIP、免安裝啟動、模型更換、備份與排錯 |
 | [PORTABLE_COMPONENTS.md](docs/PORTABLE_COMPONENTS.md) | 可攜版組件來源、固定版本、授權與下載驗證 |
+| [BUILD_PORTABLE.md](docs/BUILD_PORTABLE.md) | 維護人員的重建、版本鎖定、成品測試與自動發佈 |
+| [TEST_REPORT.md](docs/TEST_REPORT.md) | 已執行的驗證與現場驗收界線 |
 | [USER_GUIDE.md](docs/USER_GUIDE.md) | 一般同仁的完整操作、覆核及排錯 |
 | [MODELS.md](docs/MODELS.md) | 模型推薦、硬體取捨、LM Studio／Bionic 設定 |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架構、資料流、API、計分與延續處理 |

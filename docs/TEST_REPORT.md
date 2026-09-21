@@ -1,8 +1,35 @@
-# 0.1.0 開發驗證紀錄
+# 開發驗證紀錄
+
+## 0.2.0 Windows Portable
+
+日期：2026-09-21。成品來源 commit：`da9c1018d18c57204c47cbf347d1ca5f2db87bf1`。
+
+| 驗證 | 結果 |
+|---|---|
+| Linux 本機 Python 3.12 | 143 項通過、38 個子案例通過；1 項 Windows Job Object 測試依平台略過 |
+| GitHub Windows Python 3.13，依賴與發行包鎖定一致 | 144 項及 38 個子案例通過，含實際 Windows 程序清理 |
+| Windows／macOS／Linux × Python 3.11／3.12 | 六組 CI 全部通過 |
+| 完整 ZIP 內容 | ZIP SHA-256、每檔 manifest、內附 GGUF、Python 與原生套件驗證通過；不含使用者資料庫 |
+| 免安裝執行環境 | 使用 ZIP 內的 Python；PATH 只保留 Windows 系統路徑，未使用系統 Python 或 LM Studio |
+| 路徑及連線 | 含繁體中文與空白的解壓路徑、兩個預設連接埠被占用、自動改用空埠、無效代理設定均通過 |
+| 真實本機模型推論 | 內附 Qwen3.5-2B Q6_K／llama.cpp CPU，合成的 48 V 條款得到 `match`，且引述逐字存在於產品原文；不是固定示範模式 |
+| 覆核及報告 | 保存確認人、註記與事件版本；HTML／XLSX／JSON 三種匯出及歷次報告保存通過 |
+| 啟停及重新開啟 | 實際呼叫 Start.bat／Stop.bat；兩個子服務停止、覆核與匯出紀錄重啟後保留 |
+| 模型追溯與續跑 | 單元/API 測試確認指紋、模型身分、重啟埠號與金鑰更換、原始快照及續跑事件保存；換模型不得續跑舊批次 |
+
+驗證來源：[完整 Portable 建置與成品測試](https://github.com/pcpcchen-coder/LocalAIforSPECheck/actions/runs/35572596953)、[六組跨平台測試](https://github.com/pcpcchen-coder/LocalAIforSPECheck/actions/runs/35572596940)。發佈包附有 `portable-smoke-report.json` 及 `SHA256SUMS.txt`，可從 [該版 Release](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases/tag/windows-portable-v0.2.0-da9c1018) 取得。
+
+本次實際成品驗收修正了上游 API key 讀檔在繁體中文絕對路徑下失敗的問題，改用相對路徑，保留原本的中文路徑測試。另修正 Windows Job Object 測試的退出碼假設，以程序確實停止且未自然完成作為依據。
+
+**驗證界線：**Windows CI runner 已預裝系統元件；上述結果不是每一台全新 Windows 10／11 企業電腦、所有舊 CPU 或公司端點政策的實機保證。成品已攜帶所需 application-local CRT，仍需在目標電腦核准並試用。單一合成條款確認的是推論與證據流程，沒有量測公司真實文件的差異召回率、誤判率或速度。正式採用仍依 [EVALUATION.md](EVALUATION.md) 與 [ACCEPTANCE.md](ACCEPTANCE.md) 驗收。
+
+## 0.1.0 原始碼版的歷史驗證
+
+以下保留前版開發紀錄；其中「尚待驗收」描述的是當時的原始碼版。Windows Portable 的新增實測以上節為準。
 
 日期：2026-09-21。此紀錄驗證軟體行為，不宣稱模型在真實規格文件上的準確率。
 
-## 已執行
+### 已執行
 
 | 驗證 | 結果 |
 |---|---|
@@ -24,7 +51,7 @@ Python 3.12.14，Linux；FastAPI 0.141.1、Uvicorn 0.53.0、pypdf 6.10.0、pytho
 - API／資料：14 項。合成示範、全列確認、改判／重開、409 版本衝突、快照隔離、取消／續跑、重啟恢復、來源／主機限制、匯出封存與雜湊、一致交易快照。
 - 模型驗收工具：19 項。原始 AI 判定、混淆矩陣、缺列、關鍵錯判、零分母、重複鍵、引用有效率、示範警告，以及 ASCII／cp1252 管道的中文輸出。
 
-## 開發期間修正
+### 開發期間修正
 
 1. XLSX 檔案內的 worksheet dimension 可能過小、過大或偏移；原始唯讀迭代可能漏掉後方條文。改為先檢查實際 XML 儲存格座標，再重設兩份工作表的維度，並按實際內容檢查大小限制。
 2. 模型回應 token 欄位的 HTML step 與預設 1800 不相容，可能使瀏覽器拒絕儲存。已改為整數步進，與 API 範圍一致。
@@ -32,7 +59,7 @@ Python 3.12.14，Linux；FastAPI 0.141.1、Uvicorn 0.53.0、pypdf 6.10.0、pytho
 4. 讀取報告時使用同一個 SQLite 交易快照，避免同時有人覆核造成結果版本與歷史版本不一致。
 5. GitHub Windows CI 發現驗收 CLI 在 cp1252 終端管道輸出中文會失敗；CLI 已明確使用 UTF-8，並新增說明、JSON 及錯誤訊息的跨編碼回歸測試。
 
-## 重跑
+### 重跑
 
 ```bash
 python -m pip install -r requirements-dev.txt
@@ -51,7 +78,7 @@ python tests/browser_smoke.py
 
 GitHub Actions 已提供 Windows／macOS／Linux × Python 3.11／3.12 測試設定。設定存在不等於雲端 CI 已成功；請以儲存庫 Actions 實際紀錄為準。
 
-## 尚待使用者環境驗收
+### 尚待使用者環境驗收
 
 - 真正 LM Studio＋指定 GGUF 模型的推論、JSON 穩定性、速度及 RAM／VRAM 使用量。
 - Bionic 版本是否實際提供相容 API。
