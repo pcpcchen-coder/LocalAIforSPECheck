@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -154,9 +155,39 @@ def test_cli_writes_report_and_prevents_overwriting_inputs(tmp_path, capsys):
 
 def test_cli_is_runnable_directly_without_project_imports(tmp_path):
     script = Path(__file__).resolve().parents[1] / "scripts" / "evaluate_gold.py"
-    result = subprocess.run([sys.executable, str(script), "--help"], cwd=tmp_path, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, str(script), "--help"], cwd=tmp_path, capture_output=True, encoding="utf-8")
     assert result.returncode == 0
     assert "--output" in result.stdout
+
+
+@pytest.mark.parametrize("stdio_encoding", ["ascii", "cp1252"])
+def test_cli_preserves_utf8_help_json_and_errors_with_legacy_stdio(tmp_path, stdio_encoding):
+    script = Path(__file__).resolve().parents[1] / "scripts" / "evaluate_gold.py"
+    environment = {**os.environ, "PYTHONIOENCODING": stdio_encoding}
+
+    def invoke(*arguments):
+        return subprocess.run(
+            [sys.executable, str(script), *map(str, arguments)], cwd=tmp_path,
+            env=environment, capture_output=True, encoding="utf-8",
+        )
+
+    help_result = invoke("--help")
+    assert help_result.returncode == 0
+    assert "人工標準答案" in help_result.stdout
+    run = tmp_path / "run.json"
+    gold = tmp_path / "gold.json"
+    run.write_text(json.dumps(run_export([prediction("B1", "match")], mode="demo"), ensure_ascii=False), encoding="utf-8")
+    gold.write_text(json.dumps({"rows": [answer("B1", "match")]}, ensure_ascii=False), encoding="utf-8")
+    report_result = invoke(run, gold)
+    assert report_result.returncode == 0
+    assert "規範.txt" in report_result.stdout
+    report = json.loads(report_result.stdout)
+    assert report["metrics"]["accuracy"] == 1
+    assert any("示範模式" in warning for warning in report["warnings"])
+    error_result = invoke(run, gold, "--output", run)
+    assert error_result.returncode == 2
+    assert "評估失敗" in error_result.stderr
+    assert "UnicodeEncodeError" not in error_result.stderr
 
 
 def test_template_keys_match_current_example_extraction():

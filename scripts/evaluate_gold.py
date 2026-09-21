@@ -236,6 +236,11 @@ def evaluate(run: dict, gold: dict) -> dict:
 
 
 def main(argv=None) -> int:
+    # Windows redirected streams may use cp1252; argparse help and Chinese JSON
+    # must use the same explicit encoding as our UTF-8 report files.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     parser = argparse.ArgumentParser(description="以獨立人工答案評估 JSON 匯出的 AI 原始判定；不呼叫模型。")
     parser.add_argument("run_export", type=Path, help="本工具匯出的執行結果 JSON")
     parser.add_argument("gold", type=Path, help="人工標準答案 JSON（包含 rows）")
