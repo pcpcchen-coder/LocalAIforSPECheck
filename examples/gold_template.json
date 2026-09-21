@@ -1,0 +1,23 @@
+{
+  "description": "教學用人工標註子集：搭配 product_48v_controller.txt 與 standard_a_48v.txt。正式驗收應獨立標註全部代表條文；本檔不代表任何模型實測成績。",
+  "rows": [
+    {
+      "standard_name": "standard_a_48v.txt",
+      "block_id": "B00001",
+      "status": "match",
+      "critical": true
+    },
+    {
+      "standard_name": "standard_a_48v.txt",
+      "block_id": "B00003",
+      "status": "mismatch",
+      "critical": true
+    },
+    {
+      "standard_name": "standard_a_48v.txt",
+      "block_id": "B00004",
+      "status": "missing",
+      "critical": false
+    }
+  ]
+}
