@@ -1,5 +1,33 @@
 # 開發驗證紀錄
 
+## 0.2.1 執行現況
+
+日期：2026-09-21。
+
+| 驗證 | 結果 |
+|---|---|
+| Linux Python 3.12 自動測試 | 150 項通過、38 個子案例通過；1 項 Windows Job Object 測試依平台略過 |
+| 模型尚未回覆時的狀態查詢 | 刻意阻擋模型 HTTP 回覆，進度 API 仍可查詢；沒有讀取整份文件快照，也不會偽造模型回覆時間 |
+| 條目與產品分段 | 第一條規範在 3 個產品視窗尚未全部完成前維持 0/1；每次實際回覆後才更新視窗與請求計數 |
+| 資料一致性 | 結果列與完成數同一交易提交；取消、續跑、排隊取消與重啟的狀態正確；舊版資料自動補進度記錄 |
+| 事件與機密 | 最近事件最多保留 30 筆；錯誤不洩漏提示、回應內容或 API key |
+| 真實 Chromium 操作 | 等待、輕量輪詢、斷線及恢復、已完成計時凍結、停止等待、完成後完整結果載入失敗與恢復、檔名安全、390px 版面均通過，無非預期 console／page error |
+| 前端語法 | `node --check spec_check/static/app.js` 通過 |
+
+瀏覽器測試使用真實後端與可控制等待時間的合成 HTTP 模型；這驗證狀態呈現，不是模型準確率測試。操作畫面見 [執行中](screenshots/execution-progress.png)、[無法確認最新狀態](screenshots/execution-offline.png)。
+
+Windows Portable 工作流程使用內附 Qwen3.5-2B Q6_K 做真實 CPU 推論，另外驗證輕量進度、已結束請求數、實際回覆時間與重啟後保留。**只有成品驗證通過才公開 Release**；同版附帶的 `portable-smoke-report.json` 是該 ZIP 的驗證結果。流程與方法見 [BUILD_PORTABLE.md](BUILD_PORTABLE.md)。
+
+重跑針對性的瀏覽器驗證（開發環境）：
+
+```bash
+python -m pip install playwright
+python -m playwright install chromium
+python tests/progress_browser_smoke.py
+```
+
+既有 Chromium 可透過 `SPEC_CHECK_BROWSER` 指定。此測試會產生上述合成案例截圖。
+
 ## 0.2.0 Windows Portable
 
 日期：2026-09-21。成品來源 commit：`da9c1018d18c57204c47cbf347d1ca5f2db87bf1`。

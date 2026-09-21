@@ -74,7 +74,9 @@ jobs:
           BUILD_SHA: ${{ github.sha }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag = "windows-portable-v0.2.0-$($env:BUILD_SHA.Substring(0, 8))"
+          $version = python -c "from spec_check import __version__; print(__version__)"
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid application version.' }
+          $tag = "windows-portable-v$version-$($env:BUILD_SHA.Substring(0, 8))"
           $zip = 'dist/LocalAIforSPECheck-Windows-x64.zip'
           $checksums = 'dist/SHA256SUMS.txt'
           $report = 'dist/portable-smoke-report.json'
@@ -88,6 +90,8 @@ jobs:
           Windows 10/11 x64 免安裝版。下載 **LocalAIforSPECheck-Windows-x64.zip**，完整解壓縮後雙擊 **Start.bat**；結束時使用 **Stop.bat**。
 
           ZIP 包含可攜式 Python、所有 Python 套件、llama.cpp CPU 推論服務及 Qwen3.5-2B Q6_K 入門模型，初次啟動不需下載模型、不需安裝 Python 或 LM Studio。
+
+          執行現況區塊提供目前規範、條目、產品分段、請求等待時間、最近模型回覆、程式連線狀態與事件紀錄。完成百分比只計算已儲存條目；等待模型回覆時不會虛構 token 或推論百分比。
 
           2B 模型用於入門與流程驗證。正式技術文件請先以人工標註案例驗收，必要時換較大 GGUF；模型輸出仍須人工覆核。公司若以應用程式控管禁止 EXE 執行，仍須依公司政策處理。
 
@@ -112,7 +116,7 @@ jobs:
               exit 0
             }
           } else {
-            gh release create $tag --target $env:BUILD_SHA --draft --title 'LocalAIforSPECheck Windows Portable v0.2.0' --notes-file dist/release-notes.md
+            gh release create $tag --target $env:BUILD_SHA --draft --title "LocalAIforSPECheck Windows Portable v$version" --notes-file dist/release-notes.md
             if ($LASTEXITCODE -ne 0) { throw 'Failed to create release draft.' }
           }
           gh release upload $tag $zip $checksums $report --clobber

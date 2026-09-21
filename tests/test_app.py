@@ -69,7 +69,7 @@ def local_project(client, requirements="額定電壓：48 V\n防護等級：IP65
     return project, product, standard
 
 
-def simulated_result(requirement, product_blocks, settings, mode="local", cancel_check=None):
+def simulated_result(requirement, product_blocks, settings, mode="local", cancel_check=None, progress_callback=None):
     """A plausible cited response, without testing model correctness here."""
     assert mode == "local"
     if cancel_check and cancel_check():
@@ -425,7 +425,7 @@ def test_cancel_and_resume_keep_completed_rows_and_original_model_settings(clien
     release_second = threading.Event()
     calls = []
 
-    def blocking(requirement, product_blocks, settings, mode="local", cancel_check=None):
+    def blocking(requirement, product_blocks, settings, mode="local", cancel_check=None, progress_callback=None):
         calls.append((requirement["id"], settings["model"]))
         if len(calls) == 2:
             entered_second.set()

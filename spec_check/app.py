@@ -62,11 +62,14 @@ def create_app(data_dir=None):
     async def lifespan(app):
         for run in store.list('run'):
             if run['status'] in {'running','queued'}:
-                run.update(status='interrupted', error='程式上次中斷。可繼續尚未完成的條目。')
-                store.put('run',run,run['project_id'])
+                run.update(status='interrupted',finished_at=now(),error='程式上次中斷。可繼續尚未完成的條目。')
+                update_progress(run['id'],stage='interrupted',message='偵測到上次執行中斷，可繼續未完成區塊。',run=run,
+                                execution=dict(status='interrupted',error=run['error'],completed=store.count('result',run['id'])),
+                                request_started_at=None,finished_at=run['finished_at'])
         yield
-        for event in cancel_events.values():
-            event.set()
+        with lock:
+            for event in cancel_events.values():
+                event.set()
         executor.shutdown(wait=False, cancel_futures=True)
 
     app = FastAPI(title='LocalAIforSPECheck', version=__version__, lifespan=lifespan)
@@ -113,8 +116,60 @@ def create_app(data_dir=None):
         project['documents'] = [public_doc(d) for d in store.list('document',project_id) if not d.get('_deleted')]
         return project
 
+    def initial_progress(run, previous=None):
+        """Small durable execution record, independent of immutable source text."""
+        stamp = now()
+        previous = previous or {}
+        return dict(id=run['id'],project_id=run['project_id'],status=run['status'],
+                    completed=run.get('completed',0),total=run['total'],error=run.get('error'),
+                    progress=dict(stage=run['status'],started_at=None,updated_at=stamp,
+                        request_started_at=None,last_response_at=None,finished_at=run.get('finished_at'),
+                        standard_name='',standard_index=0,standard_total=sum(d['role']=='standard' for d in run['documents']),
+                        block_id='',block_index=0,block_total=0,location='',
+                        window_index=0,window_total=0,windows_completed=0,requests_completed=0,
+                        timeout_seconds=run.get('settings',{}).get('timeout',180),cancel_requested=False,
+                        events=previous.get('events',[])[-29:]))
+
+    def execution_state(run_id, run=None):
+        with lock:
+            try:
+                return store.get('run_progress',run_id)
+            except KeyError:
+                # Old databases remain usable. The large snapshot is read only
+                # once. The lock prevents a first poll replacing newer progress.
+                run = run or store.get('run',run_id)
+                run['completed'] = store.count('result',run_id)
+                state = initial_progress(run)
+                state['progress']['updated_at'] = run.get('finished_at') or run['created_at']
+                store.put('run_progress',state,run['project_id'])
+                return state
+
+    def update_progress(run_id, *, stage=None, message=None, execution=None,
+                        run=None, result=None, **fields):
+        with lock:
+            state = execution_state(run_id,run)
+            state.update(execution or {})
+            progress = state['progress']
+            stamp = now()
+            progress.update(fields,updated_at=stamp)
+            if stage is not None:
+                progress['stage'] = stage
+            if message:
+                progress['events'] = (progress.get('events',[]) + [
+                    dict(at=stamp,stage=progress['stage'],message=message)])[-30:]
+            items = [('run_progress',state,state['project_id'])]
+            if result is not None:
+                items.append(('result',result,run_id))
+            if run is not None:
+                run.update({k:state[k] for k in ('status','completed','error')})
+                items.append(('run',run,run['project_id']))
+            store.put_many(items)
+            return state
+
     def full_run(run_id):
-        run = store.run_snapshot(run_id)
+        with lock:
+            execution_state(run_id)
+            run = store.run_snapshot(run_id)
         results = run['results']
         run['completed'] = len(results)
         run['rankings'] = rank_results(results,run['documents'])
@@ -122,46 +177,99 @@ def create_app(data_dir=None):
         return run
 
     def worker(run_id, settings, event):
-        run = store.get('run',run_id)
-        run.update(status='running', error=None, finished_at=None)
-        store.put('run',run,run['project_id'])
+        with lock:
+            # Atomically claim the queued job. An old cancelled future must never
+            # change a newer resume's state, even if it starts at the same time.
+            if event.is_set():
+                if cancel_events.get(run_id) is event:
+                    cancel_events.pop(run_id,None)
+                return
+            run = store.get('run',run_id)
+            run.update(status='running', error=None, finished_at=None)
+            update_progress(run_id,stage='preparing',message='開始處理比對文件。',run=run,
+                            execution=dict(status='running',error=None),started_at=now(),finished_at=None)
         try:
             product = next(d for d in run['documents'] if d['role'] == 'product')
             done = {(r['standard_id'],r['block_id']) for r in store.list('result',run_id)}
-            for doc in run['documents']:
-                if doc['role'] != 'standard':
-                    continue
+            standards = [d for d in run['documents'] if d['role']=='standard']
+            for standard_index, doc in enumerate(standards,1):
                 for block_index, block in enumerate(doc['blocks']):
                     if event.is_set():
                         raise ComparisonCancelled('使用者取消')
                     if (doc['id'],block['id']) in done:
                         continue
+                    update_progress(run_id,stage='preparing',
+                        message=f'準備規範 {standard_index}/{len(standards)} 的區塊 {block_index+1}/{len(doc["blocks"])}。',
+                        standard_name=doc['name'],standard_index=standard_index,standard_total=len(standards),
+                        block_id=block['id'],block_index=block_index+1,block_total=len(doc['blocks']),location=block['location'],
+                        window_index=0,window_total=0,windows_completed=0,request_started_at=None)
+
+                    def on_progress(update):
+                        stage = update['stage']
+                        index, total = update['window_index'], update['window_total']
+                        with lock:
+                            current = execution_state(run_id)['progress']
+                            fields = dict(window_index=index,window_total=total)
+                            message = None
+                            if stage == 'waiting_model':
+                                fields['request_started_at'] = now()
+                                message = f'已送出產品文字視窗 {index}/{total}，等待本地模型回應。'
+                            elif stage == 'checking_response':
+                                fields.update(last_response_at=now(),request_started_at=None)
+                                message = f'已收到視窗 {index}/{total} 回應，正在驗證格式及原文證據。'
+                            elif stage in {'window_completed','window_failed'}:
+                                fields.update(request_started_at=None,requests_completed=current['requests_completed']+1)
+                                if stage == 'window_completed':
+                                    fields['windows_completed'] = current['windows_completed']+1
+                                    message = f'視窗 {index}/{total} 已完成回應驗證。'
+                                else:
+                                    message = f'視窗 {index}/{total} 請求或回應驗證失敗；此區塊將標示待釐清。'
+                                stage = 'checking_response' if stage == 'window_completed' else 'handling_error'
+                            update_progress(run_id,stage=stage,message=message,**fields)
+
                     try:
                         contextual_block = dict(block, context=[b for i,b in enumerate(doc['blocks'][max(0,block_index-1):block_index+2],max(0,block_index-1)) if i != block_index])
-                        payload = compare_block(contextual_block,product['blocks'],settings,mode=run['mode'],cancel_check=event.is_set)
+                        payload = compare_block(contextual_block,product['blocks'],settings,mode=run['mode'],cancel_check=event.is_set,progress_callback=on_progress)
                     except ComparisonCancelled:
                         raise
                     except Exception as exc:
                         # Do not store exception text: remote diagnostics could echo a credential.
+                        update_progress(run_id,stage='handling_error',request_started_at=None,
+                                        message='此區塊執行失敗，將保存待釐清結果供人工覆核。')
                         payload = dict(requirement=block['text'],status='uncertain',explanation='此條目執行失敗，請檢查模型服務後另建比對或人工覆核。',differences=[],evidence=[],confidence=0,
                                        product_coverage={'scanned':0,'total':len(product['blocks'])},warnings=[type(exc).__name__])
+                    if event.is_set():
+                        raise ComparisonCancelled('使用者取消')
                     result = dict(payload, id=uid(),run_id=run_id,standard_id=doc['id'],standard_name=doc['name'],block_id=block['id'],location=block['location'],requirement=block['text'],
                                   review={'decision':'pending','final_status':None,'reviewer':'','note':'','updated_at':None,'version':0})
-                    store.put('result',result,run_id)
+                    # Count and saved row become visible in the same transaction.
                     done.add((doc['id'],block['id']))
                     run['completed'] = len(done)
-                    store.put('run',run,run['project_id'])
+                    update_progress(run_id,stage='saving_result',message=f'已保存 {len(done)}/{run["total"]} 個規範區塊。',
+                                    execution=dict(completed=len(done)),result=result,request_started_at=None)
             run.update(status='completed',finished_at=now())
+            stage, message = 'completed', '所有規範區塊已完成並保存，可逐條覆核與匯出。'
         except ComparisonCancelled:
             run.update(status='cancelled',finished_at=now(),error='已停止。可以從未完成條目繼續。')
+            stage, message = 'cancelled', '已停止，完成的結果已保留；未完成區塊可繼續。'
         except Exception as exc:
             run.update(status='failed',finished_at=now(),error='執行中斷：'+type(exc).__name__+'。可嘗試繼續或另建比對。')
+            stage, message = 'failed', '執行中斷，已保存的結果仍可覆核；可嘗試繼續。'
         finally:
-            store.put('run',run,run['project_id'])
+            update_progress(run_id,stage=stage,message=message,run=run,
+                            execution=dict(status=run['status'],error=run['error']),
+                            request_started_at=None,finished_at=run['finished_at'])
+            with lock:
+                if cancel_events.get(run_id) is event:
+                    cancel_events.pop(run_id,None)
 
     def queue(run,settings):
         event = threading.Event()
         cancel_events[run['id']] = event
+        previous = execution_state(run['id'],run)['progress']
+        state = initial_progress(run,previous)
+        state['progress']['events'].append(dict(at=state['progress']['updated_at'],stage='queued',message='已排入本機工作佇列，等待開始。'))
+        store.put_many([('run',run,run['project_id']),('run_progress',state,run['project_id'])])
         executor.submit(worker,run['id'],copy.deepcopy(settings),event)
 
     @app.get('/api/health')
@@ -335,18 +443,32 @@ def create_app(data_dir=None):
     @app.get('/api/projects/{project_id}/runs')
     def project_runs(project_id: str):
         store.get('project',project_id)
-        return [{k:v for k,v in r.items() if k not in {'documents','results'}} for r in store.list('run',project_id)]
+        return [{**{k:v for k,v in r.items() if k not in {'documents','results'}},**execution_state(r['id'],r)}
+                for r in store.list('run',project_id)]
 
     @app.get('/api/runs/{run_id}')
     def read_run(run_id: str):
         return full_run(run_id)
 
+    @app.get('/api/runs/{run_id}/progress')
+    def read_progress(run_id: str):
+        return dict(execution_state(run_id),server_time=now())
+
     @app.post('/api/runs/{run_id}/cancel')
     def cancel(run_id: str):
-        store.get('run',run_id)
-        event = cancel_events.get(run_id)
-        if event:
-            event.set()
+        with lock:
+            run = store.get('run',run_id)
+            state = execution_state(run_id,run)
+            event = cancel_events.get(run_id)
+            if event and state['status'] in {'queued','running'}:
+                event.set()
+                if state['status'] == 'queued':
+                    run.update(status='cancelled',finished_at=now(),error='已停止。可以從未完成條目繼續。')
+                    update_progress(run_id,stage='cancelled',message='已取消排隊，尚未開始模型請求。',run=run,
+                                    execution=dict(status='cancelled',error=run['error']),
+                                    cancel_requested=True,finished_at=run['finished_at'])
+                else:
+                    update_progress(run_id,message='已要求停止；若模型請求尚未結束，需等候回應或逾時後停止。',cancel_requested=True)
         return full_run(run_id)
 
     @app.post('/api/runs/{run_id}/resume')

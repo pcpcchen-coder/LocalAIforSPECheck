@@ -61,11 +61,16 @@ class Store:
             db.close()
 
     def put(self, kind, obj, parent=None):
-        with self.connect() as db:
-            db.execute('INSERT INTO records(kind,id,parent,data) VALUES(?,?,?,?) '
-                       'ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data,parent=excluded.parent',
-                       (kind, obj['id'], parent, json.dumps(obj, ensure_ascii=False)))
+        self.put_many([(kind, obj, parent)])
         return obj
+
+    def put_many(self, items):
+        """Commit related records together (for example a result and its count)."""
+        with self.connect() as db:
+            db.executemany('INSERT INTO records(kind,id,parent,data) VALUES(?,?,?,?) '
+                           'ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data,parent=excluded.parent',
+                           [(kind, obj['id'], parent, json.dumps(obj, ensure_ascii=False))
+                            for kind, obj, parent in items])
 
     def get(self, kind, identifier):
         with self.connect() as db:
@@ -82,6 +87,11 @@ class Store:
                 rows = db.execute('SELECT data FROM records WHERE kind=? AND parent=? ORDER BY rowid', (kind,parent)).fetchall()
         return [json.loads(r['data']) for r in rows]
 
+    def count(self, kind, parent):
+        with self.connect() as db:
+            return db.execute('SELECT COUNT(*) FROM records WHERE kind=? AND parent=?',
+                              (kind,parent)).fetchone()[0]
+
     def history(self, result_id):
         with self.connect() as db:
             return [json.loads(r['data']) for r in db.execute(
@@ -95,6 +105,10 @@ class Store:
             if row is None:
                 raise KeyError(run_id)
             run = json.loads(row['data'])
+            progress = db.execute('SELECT data FROM records WHERE kind=? AND id=?',
+                                  ('run_progress', run_id)).fetchone()
+            if progress is not None:
+                run.update(json.loads(progress['data']))
             results = [json.loads(r['data']) for r in db.execute(
                 'SELECT data FROM records WHERE kind=? AND parent=? ORDER BY rowid', ('result',run_id))]
             for result in results:

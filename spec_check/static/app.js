@@ -7,7 +7,7 @@ const RUN_STATUS = {queued: "排隊中", running: "比對中", completed: "已�
 const DECISION = {pending: "尚待確認", confirmed: "已確認", changed: "已修正", reopened: "重新待確認"};
 const ACTIVE = new Set(["queued", "running"]);
 const PAGE_SIZE = 40;
-const state = {projects: [], project: null, runs: [], run: null, settings: {}, step: "documents", selectedStandards: new Set(), previewDoc: null, detailId: null, detailVersion: 0, page: 1, selectionEpoch: 0, runSelectionEpoch: 0, mutationEpoch: 0, pollTimer: null, polling: false, connected: false};
+const state = {projects: [], project: null, runs: [], run: null, settings: {}, step: "documents", selectedStandards: new Set(), previewDoc: null, detailId: null, detailVersion: 0, page: 1, selectionEpoch: 0, runSelectionEpoch: 0, mutationEpoch: 0, pollTimer: null, pollTask: null, pollController: null, monitorTimer: null, progressContactAt: 0, progressServerAt: 0, progressError: "", progressResultsError: "", progressNeedsFull: false, connected: false};
 
 function escapeHTML(value) { return String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"})[c]); }
 function dateLabel(value) { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.valueOf()) ? String(value) : date.toLocaleString("zh-TW", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}); }
@@ -102,7 +102,11 @@ function renderSettingsSummary() {
   $("#model-endpoint").textContent = state.settings.base_url || "http://127.0.0.1:1234/v1";
   const badge = $("#connection-badge");
   badge.textContent = state.connected ? "● 本機模型連線成功" : state.settings.model ? "已設定模型 · 尚未測試連線" : "尚未測試模型連線";
-  badge.classList.toggle("connected", state.connected);
+  const run = state.run, responseAt = run?.mode === "local" && run.progress?.last_response_at;
+  if (run && ACTIVE.has(run.status) && (state.progressError || Date.now() - state.progressContactAt > 12000)) badge.textContent = "執行狀態連線中斷";
+  else if (responseAt) badge.textContent = `本批次模型曾回應 · ${clockLabel(responseAt)}`;
+  else if (run?.mode === "local" && run.progress?.stage === "waiting_model") badge.textContent = "已送出模型請求 · 尚待回覆";
+  badge.classList.toggle("connected", !state.progressError && Boolean(responseAt || state.connected));
 }
 
 async function refreshProjects() {
@@ -110,7 +114,7 @@ async function refreshProjects() {
 }
 async function selectProject(id) {
   const epoch = ++state.selectionEpoch;
-  clearTimeout(state.pollTimer); state.run = null; state.detailId = null; state.page = 1;
+  stopProgressPoll(); resetProgressMonitor(); state.run = null; state.detailId = null; state.page = 1;
   setDialog("review-dialog", false); setDialog("document-dialog", false);
   const [project, runsData] = await Promise.all([api(`/api/projects/${encodeURIComponent(id)}`), api(`/api/projects/${encodeURIComponent(id)}/runs`)]);
   if (epoch !== state.selectionEpoch) return;
@@ -194,7 +198,10 @@ function renderRunList() {
   for (const selector of ["#review-run-select", "#report-run-select"]) { $(selector).innerHTML = options; if (state.run) $(selector).value = state.run.id; $(selector).disabled = !state.runs.length; }
 }
 function updateRun(run) {
+  if (state.run?.id !== run.id) { stopProgressPoll(); resetProgressMonitor(); }
   state.run = run;
+  state.progressResultsError = ""; state.progressNeedsFull = false;
+  recordProgressContact(run.server_time);
   const index = state.runs.findIndex((item) => item.id === run.id);
   const brief = {...run}; delete brief.results; delete brief.documents;
   if (index >= 0) state.runs[index] = brief; else state.runs.unshift(brief);
@@ -206,7 +213,10 @@ function updateRun(run) {
 async function selectRun(id, navigate = true) {
   if (!id) return;
   const epoch = state.selectionEpoch, runEpoch = ++state.runSelectionEpoch;
-  const run = await api(`/api/runs/${encodeURIComponent(id)}`);
+  stopProgressPoll();
+  let run;
+  try { run = await api(`/api/runs/${encodeURIComponent(id)}`); }
+  catch (error) { if (epoch === state.selectionEpoch && runEpoch === state.runSelectionEpoch) schedulePoll(); throw error; }
   if (epoch !== state.selectionEpoch || runEpoch !== state.runSelectionEpoch || run.project_id !== state.project?.id) return;
   state.page = 1; $("#filter-standard").value = "";
   updateRun(run);
@@ -219,33 +229,145 @@ async function refreshRuns() {
   if (state.project.id !== projectId) return;
   state.runs = Array.isArray(data) ? data : data.runs || [];
   renderRunList();
-  if (state.run) { const run = await api(`/api/runs/${encodeURIComponent(state.run.id)}`); if (run.project_id === state.project.id) updateRun(run); }
+  if (state.run) {
+    const id = state.run.id, runEpoch = state.runSelectionEpoch;
+    const run = await api(`/api/runs/${encodeURIComponent(id)}`);
+    if (run.project_id === state.project?.id && state.run?.id === id && runEpoch === state.runSelectionEpoch) updateRun(run);
+  }
+}
+const PROGRESS_STAGE = {queued:"已排入比對佇列", preparing:"正在整理比對原文", waiting_model:"等待本機模型回覆", checking_response:"已收到回覆，正在核對證據", handling_error:"正在記錄請求錯誤", saving_result:"正在儲存本條結果", completed:"本批次比對已完成", cancelled:"比對已停止，結果已保留", interrupted:"比對服務曾中斷", failed:"比對執行失敗"};
+function clockLabel(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? "—" : date.toLocaleTimeString("zh-TW", {hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit"});
+}
+function milliseconds(value) { const parsed = Date.parse(value); return Number.isFinite(parsed) ? parsed : 0; }
+function durationLabel(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  return [Math.floor(total / 3600), Math.floor(total % 3600 / 60), total % 60].map((number) => String(number).padStart(2,"0")).join(":");
+}
+function monitorText(selector, value) { const node = $(selector); if (node.textContent !== String(value)) node.textContent = value; }
+function stopProgressPoll() {
+  clearTimeout(state.pollTimer); state.pollTimer = null;
+  state.pollController?.abort(); state.pollController = null; state.pollTask = null;
+}
+function resetProgressMonitor() {
+  clearInterval(state.monitorTimer); state.monitorTimer = null;
+  state.progressContactAt = 0; state.progressServerAt = 0; state.progressError = ""; state.progressResultsError = ""; state.progressNeedsFull = false;
+}
+function recordProgressContact(serverTime) {
+  state.progressContactAt = Date.now(); state.progressServerAt = milliseconds(serverTime) || state.progressContactAt; state.progressError = "";
 }
 function renderMonitor() {
-  const run = state.run;
-  $("#run-monitor").hidden = !run;
-  if (!run) return;
-  const total = Number(run.total || 0), completed = Number(run.completed || 0);
+  const run = state.run, monitor = $("#run-monitor");
+  monitor.hidden = !run;
+  if (!run) { clearInterval(state.monitorTimer); state.monitorTimer = null; renderSettingsSummary(); return; }
+  const progress = run.progress || {}, total = Number(run.total || 0), completed = Number(run.completed || 0);
   const percent = total ? Math.min(100, completed / total * 100) : 0;
-  const active = ACTIVE.has(run.status);
-  $("#run-monitor").innerHTML = `<div class="monitor-top"><div class="monitor-title"><strong>${RUN_STATUS[run.status] || escapeHTML(run.status)}${run.mode === "demo" ? " · 示範資料" : ""}</strong>${integer(completed)} / ${integer(total)} 個區塊 · ${percent.toFixed(0)}% <span class="muted">· 批次 ${escapeHTML(run.id.slice(0,8))}</span></div><div class="monitor-actions">${active ? '<button id="cancel-run" class="button button-small button-secondary">停止比對</button>' : ["cancelled", "interrupted", "failed"].includes(run.status) ? '<button id="resume-run" class="button button-small button-primary">繼續未完成項目</button>' : ""}<button class="button button-small button-quiet" data-go="review">查看結果 →</button></div></div><div class="progress-track" role="progressbar" aria-label="規範比對進度" aria-valuenow="${completed}" aria-valuemax="${total}" aria-valuemin="0"><span style="width:${percent}%"></span></div><p class="monitor-note">${active ? "正在逐區塊檢查產品原文；每完成一項就會儲存。停止指令會在目前模型請求返回後生效。" : run.status === "completed" ? "本次區塊處理已完成。請核對產品證據與差異，AI 不保證找出全部語意差異。" : "已完成結果保留；可繼續處理未完成區塊。未完成時的排名僅供暫時參考。"}${run.error ? ` ${escapeHTML(run.error)}` : ""}</p>`;
+  const active = ACTIVE.has(run.status), age = state.progressContactAt ? Math.max(0, (Date.now() - state.progressContactAt) / 1000) : 0;
+  const disconnected = active && (Boolean(state.progressError) || !state.progressContactAt || age > 12);
+  const live = active && !disconnected, stage = progress.stage || run.status;
+  const now = state.progressServerAt + (live ? age * 1000 : 0);
+  const end = active ? now : milliseconds(progress.finished_at || run.finished_at || progress.updated_at) || state.progressServerAt;
+  const requestStart = milliseconds(progress.request_started_at);
+  const requestEnd = stage === "waiting_model" && active ? now : milliseconds(progress.last_response_at) >= requestStart ? milliseconds(progress.last_response_at) : milliseconds(progress.updated_at);
+  const requestSeconds = requestStart ? Math.max(0, (requestEnd - requestStart) / 1000) : 0;
+  const cancelPending = active && Boolean(progress.cancel_requested);
+  let headline = disconnected ? "無法確認目前執行狀態" : PROGRESS_STAGE[stage] || (active ? "正在取得詳細執行現況" : RUN_STATUS[run.status] || run.status);
+  if (!active && state.progressResultsError) headline = `${RUN_STATUS[run.status] || run.status} · 結果清單更新未完成`;
+  if (cancelPending && !disconnected) headline = progress.stage === "waiting_model" ? "已要求停止，等待目前請求結束" : "已要求停止，等待排程確認";
+  monitor.dataset.connection = disconnected ? "disconnected" : "connected";
+  monitor.dataset.stage = stage;
+  $("#monitor-activity").dataset.active = String(live);
+  $("#monitor-activity").dataset.completed = String(run.status === "completed");
+  monitorText("#monitor-stage", headline);
+  monitorText("#monitor-batch", `批次 ${run.id.slice(0,8)}${run.mode === "demo" ? " · 示範資料" : ""}`);
+  monitorText("#monitor-current-standard", progress.standard_name ? `${progress.standard_name}${progress.standard_total ? `（第 ${integer(progress.standard_index)} / ${integer(progress.standard_total)} 份）` : ""}` : "尚未開始處理規範");
+  monitorText("#monitor-current-block", [progress.block_total ? `規範區塊 ${integer(progress.block_index)} / ${integer(progress.block_total)}` : "", progress.location, progress.block_id].filter(Boolean).join(" · "));
+  monitorText("#monitor-window", progress.window_total ? `第 ${integer(progress.window_index)} / ${integer(progress.window_total)} 段 · 本條已檢查 ${integer(progress.windows_completed)} 段` : run.mode === "demo" ? "示範模式不呼叫模型" : "等待產品原文分段");
+  monitorText("#monitor-elapsed", durationLabel((end - (milliseconds(progress.started_at || run.created_at) || end)) / 1000));
+  monitorText("#monitor-request-elapsed", requestStart ? durationLabel(requestSeconds) : "—");
+  monitorText("#monitor-request-count", integer(progress.requests_completed));
+  monitorText("#monitor-last-response", progress.last_response_at ? clockLabel(progress.last_response_at) : run.mode === "demo" ? "示範模式" : "尚未收到");
+  monitorText("#monitor-completed", `已儲存 ${integer(completed)} / ${integer(total)} 個規範區塊 · ${percent.toFixed(0)}%`);
+  $("#monitor-progress").setAttribute("aria-valuenow", String(completed));
+  $("#monitor-progress").setAttribute("aria-valuemax", String(Math.max(total,1)));
+  $("#monitor-progress-fill").style.width = `${percent}%`;
+  const timeout = Number(progress.timeout_seconds || run.settings?.timeout || 0);
+  let waitNote = "";
+  if (disconnected) waitNote = `${state.progressError || "超過 12 秒未取得服務現況。"} 將自動重試，也可按「更新現況」。下方資訊與執行計時停留在最後確認狀態；請確認啟動視窗仍開啟。`;
+  else if (cancelPending) waitNote = progress.stage === "waiting_model" ? `停止指令已記錄；目前請求返回或逾時後停止，已儲存結果會保留。${timeout ? `本次請求逾時設定為 ${integer(timeout)} 秒。` : ""}` : "停止指令已記錄，等待工作排程確認。已儲存結果會保留。";
+  else if (active && stage === "waiting_model") waitNote = `${requestSeconds >= 30 ? "這次回覆較久。" : "模型請求已送出。"}仍在等待回覆，無法從此畫面得知模型內部進度。${timeout ? `本次請求逾時設定為 ${integer(timeout)} 秒；逾時後會記錄原因。` : ""}一個規範區塊可能需要檢查多段產品原文，尚未儲存完整結果時，完成比例會維持不變。`;
+  else if (active && run.mode === "demo") waitNote = "目前使用固定示範資料，不會向模型送出請求。";
+  else if (active && !progress.stage) waitNote = "本批次尚無詳細執行紀錄，仍會更新已儲存結果。等待時間不能代表模型內部進度。";
+  else if (active && stage === "queued") waitNote = "工作已排入佇列；前一批次處理完成後會開始。";
+  else if (active) waitNote = "每個規範區塊會逐段檢查產品原文；完成後儲存結果並更新下方清單。";
+  if (state.progressResultsError) waitNote += ` 結果清單讀取失敗，將自動重試。${state.progressResultsError}`;
+  $("#monitor-wait-note").hidden = !waitNote;
+  $("#monitor-wait-note").classList.toggle("slow", live && stage === "waiting_model" && requestSeconds >= 30);
+  monitorText("#monitor-wait-note", waitNote);
+  monitorText("#monitor-connection", disconnected ? `● 現況連線中斷 · 最後確認於 ${clockLabel(state.progressContactAt)}` : active ? `● 比對服務有回應 · ${Math.floor(age)} 秒前更新` : `● 批次${RUN_STATUS[run.status] || "已結束"} · 最後確認於 ${clockLabel(state.progressContactAt)}`);
+  monitorText("#monitor-note", `${active ? "服務有回應僅表示狀態查詢成功，不代表模型已回覆。" : run.status === "completed" ? "請核對產品證據與差異；AI 不保證找出全部語意差異。" : "已完成結果保留；可繼續處理未完成區塊。"}${run.error ? ` ${run.error}` : ""}`);
+  const events = Array.isArray(progress.events) ? progress.events : [];
+  const logHTML = events.length ? events.slice().reverse().map((event) => `<li><time>${escapeHTML(clockLabel(event.at))}</time><span>${escapeHTML(event.message || PROGRESS_STAGE[event.stage] || event.stage)}</span></li>`).join("") : '<li><span>尚無詳細紀錄。執行事件會在這裡依序保留。</span></li>';
+  if ($("#monitor-events").innerHTML !== logHTML) $("#monitor-events").innerHTML = logHTML;
+  $("#cancel-run").hidden = !active; $("#cancel-run").disabled = cancelPending || Boolean(state.controlAction);
+  monitorText("#cancel-run", cancelPending ? "已要求停止" : "停止比對");
+  $("#resume-run").hidden = !["cancelled","interrupted","failed"].includes(run.status);
+  $("#resume-run").disabled = Boolean(state.controlAction);
+  $("#refresh-progress").disabled = Boolean(state.pollTask);
+  renderSettingsSummary();
+  if (active && !state.monitorTimer) state.monitorTimer = setInterval(renderMonitor,1000);
+  else if (!active) { clearInterval(state.monitorTimer); state.monitorTimer = null; }
 }
-function schedulePoll() {
+function schedulePoll(delay = 1800) {
   clearTimeout(state.pollTimer);
-  if (!state.run || !ACTIVE.has(state.run.status)) return;
-  state.pollTimer = setTimeout(pollRun, 1800);
+  if (!state.run || (!ACTIVE.has(state.run.status) && !state.progressNeedsFull)) return;
+  state.pollTimer = setTimeout(pollRun,delay);
+}
+async function progressGet(path, task, timeout = 8000) {
+  const controller = new AbortController();
+  if (state.pollTask === task) state.pollController = controller;
+  const timer = setTimeout(() => controller.abort(),timeout);
+  try { return await api(path,{signal:controller.signal}); }
+  finally { clearTimeout(timer); if (state.pollController === controller) state.pollController = null; }
 }
 async function pollRun() {
-  if (!state.run || state.polling) { schedulePoll(); return; }
-  const id = state.run.id, epoch = state.selectionEpoch, mutationEpoch = state.mutationEpoch;
-  state.polling = true;
+  if (!state.run || state.pollTask) return;
+  clearTimeout(state.pollTimer);
+  const id = state.run.id, epoch = state.selectionEpoch, runEpoch = state.runSelectionEpoch;
+  const task = {}; state.pollTask = task; renderMonitor();
+  const current = () => state.pollTask === task && state.run?.id === id && epoch === state.selectionEpoch && runEpoch === state.runSelectionEpoch;
+  let failed = false, fetchingResults = false;
   try {
-    const run = await api(`/api/runs/${encodeURIComponent(id)}`);
-    if (state.run?.id === id && epoch === state.selectionEpoch && mutationEpoch === state.mutationEpoch) updateRun(run);
-    else schedulePoll();
+    const snapshot = await progressGet(`/api/runs/${encodeURIComponent(id)}/progress`,task);
+    if (!current()) return;
+    state.progressNeedsFull ||= Number(snapshot.completed) !== Number(state.run.completed) || snapshot.status !== state.run.status;
+    state.run = {...state.run,...snapshot};
+    recordProgressContact(snapshot.server_time);
+    const index = state.runs.findIndex((item) => item.id === id);
+    if (index >= 0) state.runs[index] = {...state.runs[index],...snapshot};
+    renderMonitor();
+    if (state.progressNeedsFull) {
+      fetchingResults = true;
+      const mutationEpoch = state.mutationEpoch;
+      const run = await progressGet(`/api/runs/${encodeURIComponent(id)}`,task,30000);
+      if (!current()) return;
+      if (mutationEpoch === state.mutationEpoch) { state.progressNeedsFull = false; updateRun(run); }
+    }
   }
-  catch (error) { if (state.run?.id === id) { notice(`${error.message} 將自動重試。`, "error"); state.pollTimer = setTimeout(pollRun, 5000); } }
-  finally { state.polling = false; }
+  catch (error) {
+    if (!current()) return;
+    failed = true;
+    if (fetchingResults) state.progressResultsError = error.message || "結果清單讀取未完成。";
+    else state.progressError = error.message || "現況查詢未完成。";
+    renderMonitor();
+  }
+  finally {
+    if (state.pollTask === task) {
+      state.pollTask = null; renderMonitor();
+      schedulePoll(failed ? 5000 : 1800);
+    }
+  }
 }
 async function startRun(modeOverride) {
   if (!state.project) return;
@@ -260,13 +382,15 @@ async function startRun(modeOverride) {
   notice(mode === "demo" ? "範例比對已啟動。這些結果是固定示範判斷，不代表模型能力。" : "本機比對已啟動。可以隨時查看已完成的項目與原文證據。");
 }
 async function controlRun(action) {
-  const id = state.run?.id; if (!id) return;
+  const id = state.run?.id; if (!id || state.controlAction) return;
+  state.controlAction = action;
+  stopProgressPoll();
   const button = $(`#${action === "cancel" ? "cancel" : "resume"}-run`);
-  await withBusy(button, async () => {
+  try { await withBusy(button, async () => {
     const run = await api(`/api/runs/${encodeURIComponent(id)}/${action}`, {method:"POST"});
     if (state.run?.id === id) updateRun(run);
-    notice(action === "cancel" ? "已送出停止指令；目前模型請求完成後會停止，已完成結果會保留。" : "已繼續比對，會略過已儲存的區塊。");
-  });
+    notice(action === "cancel" ? run.status === "cancelled" ? "比對已停止，已儲存結果會保留。" : run.progress?.stage === "waiting_model" ? "已送出停止指令；目前模型請求返回或逾時後會停止，已儲存結果會保留。" : "已送出停止指令，等待排程確認；已儲存結果會保留。" : "已繼續比對，會略過已儲存的區塊。");
+  }); } finally { state.controlAction = null; renderMonitor(); schedulePoll(); }
 }
 
 function filteredRows() {
@@ -463,6 +587,7 @@ function setupEvents() {
     const run = event.target.closest("[data-run]"); if (run) selectRun(run.dataset.run).catch(showError);
     const row = event.target.closest("[data-result]"); if (row) openResult(row.dataset.result);
     const ranking = event.target.closest("[data-ranking]"); if (ranking) { $("#filter-standard").value = $("#filter-standard").value === ranking.dataset.ranking ? "" : ranking.dataset.ranking; state.page = 1; renderReview(); }
+    if (event.target.closest("#refresh-progress")) pollRun().catch(showError);
     if (event.target.closest("#cancel-run")) controlRun("cancel").catch(showError);
     if (event.target.closest("#resume-run")) controlRun("resume").catch(showError);
   });

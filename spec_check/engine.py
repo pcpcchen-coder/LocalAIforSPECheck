@@ -292,7 +292,8 @@ def _parse_response(response: dict, blocks: list[dict]) -> dict:
             "warnings": warnings}
 
 
-def _ask_window(requirement: dict, blocks: list[dict], settings: dict, index: int, total: int) -> dict:
+def _ask_window(requirement: dict, blocks: list[dict], settings: dict, index: int, total: int,
+                response_callback: Callable[[], None] | None = None) -> dict:
     context = requirement.get("context", [])
     if not isinstance(context, list):
         context = []
@@ -318,7 +319,10 @@ def _ask_window(requirement: dict, blocks: list[dict], settings: dict, index: in
         payload["response_format"] = {"type": "json_schema", "json_schema": {
             "name": "spec_comparison", "strict": True, "schema": _RESULT_SCHEMA,
         }}
-    return _parse_response(_request_json(settings, "/chat/completions", payload), blocks)
+    response = _request_json(settings, "/chat/completions", payload)
+    if response_callback is not None:
+        response_callback()
+    return _parse_response(response, blocks)
 
 
 def _unique(values: list) -> list:
@@ -380,7 +384,8 @@ def _demo_compare(requirement: dict, product_blocks: list[dict], window_count: i
 
 
 def compare_block(requirement: dict, product_blocks: list[dict], settings: dict,
-                  mode: str = "local", cancel_check: Callable[[], bool] | None = None) -> dict:
+                  mode: str = "local", cancel_check: Callable[[], bool] | None = None,
+                  progress_callback: Callable[[dict], None] | None = None) -> dict:
     """Compare every product window, conservatively combining independent evidence.
 
     Cancellation raises ComparisonCancelled and the caller must not persist that
@@ -400,6 +405,13 @@ def compare_block(requirement: dict, product_blocks: list[dict], settings: dict,
     if not blocks_valid or len({b["id"] for b in product_blocks}) != len(product_blocks):
         raise ValueError("產品區塊必須有不重複的 ID 與文字原文。")
     windows = _windows(product_blocks, settings["context_chars"])
+    def report(stage, index=0):
+        if progress_callback is not None:
+            # Only controlled metadata is exposed, never prompts, response bodies,
+            # credentials or model-supplied diagnostics.
+            progress_callback({"stage": stage, "window_index": index,
+                               "window_total": len(windows)})
+    report("preparing")
     if mode == "demo":
         result = _demo_compare(requirement, product_blocks, len(windows))
         check_cancelled()
@@ -420,14 +432,21 @@ def compare_block(requirement: dict, product_blocks: list[dict], settings: dict,
     answers, failures = [], []
     for index, window in enumerate(windows, 1):
         check_cancelled()
+        report("waiting_model", index)
         try:
-            answer = _ask_window(requirement, window, settings, index, len(windows))
+            answer = _ask_window(requirement, window, settings, index, len(windows),
+                                 response_callback=lambda: report("checking_response", index))
             result["product_coverage"]["scanned"] += 1
             answers.append(answer)
             result["warnings"].extend(f"視窗 {index}/{len(windows)}：{w}" for w in answer["warnings"])
+            report("window_completed", index)
         except (LocalModelError, TimeoutError, socket.timeout) as exc:
             diagnostic = str(exc) if isinstance(exc, LocalModelError) else "本地模型請求逾時。"
             failures.append(f"視窗 {index}/{len(windows)}：{diagnostic}")
+            report("window_failed", index)
+        except Exception:
+            report("window_failed", index)
+            raise
         check_cancelled()
     result["evidence"] = _unique([e for a in answers for e in a["evidence"]])
     result["warnings"].extend(failures)

@@ -228,17 +228,27 @@ def run_smoke(args):
             standard = upload(base, project["id"], "standard", "standard.txt", "額定電壓：48 V\n")
             run = request(base, f"/api/projects/{project['id']}/runs",
                           {"mode": "local", "standard_ids": [standard["id"]]})
+            observed_stages = set()
 
             def completed_run():
-                current = request(base, f"/api/runs/{run['id']}")
+                current = request(base, f"/api/runs/{run['id']}/progress")
+                check("documents" not in current and "results" not in current,
+                      "Progress polling unexpectedly returns full source snapshots")
+                check(current.get("server_time"), "Progress response lacks application heartbeat time")
+                observed_stages.add(current["progress"]["stage"])
                 if current["status"] in {"failed", "cancelled", "interrupted"}:
                     raise AssertionError(f"Real model run failed: {current['status']}")
-                return current if current["status"] == "completed" else None
+                return request(base, f"/api/runs/{run['id']}") if current["status"] == "completed" else None
 
             result = wait_for(completed_run, timeout=args.inference_timeout,
                               description="real local-model comparison", process=process)
             check(result["mode"] == "local" and result["total"] == result["completed"] == 1,
                   "Real comparison did not complete exactly one requirement")
+            progress = result["progress"]
+            check(progress["stage"] == "completed" and progress["requests_completed"] == 1,
+                  "Completed real model request was not reflected in execution progress")
+            check(progress["last_response_at"] and progress["events"],
+                  "Actual model response time or execution events were not saved")
             row = result["results"][0]
             check(row["status"] == "match", f"Expected cited exact match; got: {json.dumps(row, ensure_ascii=False)}")
             check(row["evidence"], "Real model produced no validated product evidence")
@@ -259,7 +269,8 @@ def run_smoke(args):
                 check(len(output) > 100, f"Empty {fmt} export")
             check(len(request(base, f"/api/runs/{run['id']}/exports")) == 3, "Export archive is incomplete")
             report["checks"].extend(["real_json_inference", "exact_cited_evidence", "source_coverage",
-                                     "review_audit", "html_xlsx_json_exports"])
+                                     "review_audit", "html_xlsx_json_exports", "lightweight_execution_progress"])
+            report["observed_execution_stages"] = sorted(observed_stages)
             report["model"] = settings["model"]
             report["comparison_status"] = row["status"]
             stop(root, env, process, session)
@@ -268,6 +279,9 @@ def run_smoke(args):
             restored = request(base, f"/api/runs/{run['id']}")
             check(restored["results"][0]["review"]["version"] == 1, "Review did not survive restart")
             check(len(restored["exports"]) == 3, "Export history did not survive restart")
+            restored_progress = request(base, f"/api/runs/{run['id']}/progress")["progress"]
+            check(restored_progress["stage"] == "completed" and restored_progress["last_response_at"],
+                  "Execution progress history did not survive restart")
             stop(root, env, process, session)
             process = session = None
             for sock in reserved:

@@ -32,7 +32,20 @@
       <div id="workspace" hidden>
         <nav class="steps" aria-label="工作流程"><button class="step active" data-step="documents"><span>01</span><div>匯入與確認<small>核對抽取的原文</small></div></button><button class="step" data-step="compare"><span>02</span><div>開始比對<small>選擇規範與模型</small></div></button><button class="step" data-step="review"><span>03</span><div>逐條確認<small>查核證據與差異</small></div></button><button class="step" data-step="reports"><span>04</span><div>匯出與追溯<small>保存結果與歷程</small></div></button></nav>
         <div id="demo-banner" class="notice notice-demo" hidden><strong>範例示範模式</strong> 使用合成文件與固定示範判斷，不會呼叫模型；結果僅用來熟悉操作。</div>
-        <div id="run-monitor" class="run-monitor" hidden></div>
+        <section id="run-monitor" class="run-monitor" aria-labelledby="monitor-heading" hidden>
+          <div class="monitor-top">
+            <div class="monitor-heading-group"><span id="monitor-activity" class="monitor-activity" aria-hidden="true" data-active="false"></span><div><h2 id="monitor-heading">執行現況 <span id="monitor-batch" class="monitor-batch"></span></h2><p id="monitor-stage" class="monitor-stage" role="status" aria-live="polite" aria-atomic="true"></p></div></div>
+            <div class="monitor-actions"><button id="refresh-progress" class="button button-small button-secondary">更新現況</button><button id="cancel-run" class="button button-small button-secondary" hidden>停止比對</button><button id="resume-run" class="button button-small button-primary" hidden>繼續未完成項目</button><button class="button button-small button-quiet" data-go="review">查看結果 →</button></div>
+          </div>
+          <div class="monitor-work"><div><span class="monitor-label">目前規範</span><strong id="monitor-current-standard">尚未開始</strong><span id="monitor-current-block" class="monitor-location"></span></div><div class="monitor-segment"><span class="monitor-label">本條規範的產品原文檢查</span><strong id="monitor-window">等待分段</strong></div></div>
+          <dl class="monitor-metrics"><div><dt>本批次已經過</dt><dd id="monitor-elapsed">00:00:00</dd></div><div><dt>目前模型請求已等待</dt><dd id="monitor-request-elapsed">—</dd></div><div><dt>已結束的模型請求</dt><dd id="monitor-request-count">0</dd></div><div><dt>最近收到模型回覆</dt><dd id="monitor-last-response" class="monitor-time">尚未收到</dd></div></dl>
+          <div class="monitor-progress-label"><strong id="monitor-completed"></strong><span>以已儲存結果計算</span></div>
+          <div id="monitor-progress" class="progress-track" role="progressbar" aria-label="已儲存規範區塊進度" aria-valuenow="0" aria-valuemax="1" aria-valuemin="0"><span id="monitor-progress-fill"></span></div>
+          <p id="monitor-wait-note" class="monitor-wait-note"></p>
+          <div class="monitor-connection-row"><span id="monitor-connection"></span><small>自動更新現況；計時器僅表示等待時間。</small></div>
+          <p id="monitor-note" class="monitor-note"></p>
+          <details id="monitor-log" class="monitor-log"><summary>查看最近執行紀錄</summary><ol id="monitor-events"></ol></details>
+        </section>
         <section id="panel-documents" class="workspace-panel">
           <div class="section-heading"><div><h2>匯入文件</h2><p>產品規格 1 份，技術規範可加入多份。先確認原文抽取正確，再開始比對。</p></div><button class="button button-primary" data-go="compare">下一步：開始比對 →</button></div>
           <div class="upload-grid">
