@@ -304,11 +304,15 @@ def launch(root: Path, no_browser: bool) -> int:
 
         print(f"正在載入本機模型：{model.name}", flush=True)
         print("首次載入可能需要數分鐘。請保留此視窗；Ctrl+C 或 Stop.bat 可停止。", flush=True)
-        model_child = spawn([str(engine), "--model", str(model), "--host", HOST,
+        # Upstream's API-key reader uses a narrow Windows file stream. Relative
+        # ASCII paths preserve support for a bundle inside a Chinese user folder.
+        model_argument = str(Path("..") / "models" / model.name)
+        key_argument = str(Path("..") / "data" / key_path.name)
+        model_child = spawn([str(engine), "--model", model_argument, "--host", HOST,
                             "--port", str(model_port), "--alias", model.stem,
                             "--ctx-size", "16384", "--parallel", "1", "--n-gpu-layers", "0",
                             "--batch-size", "256", "--ubatch-size", "128", "--reasoning", "off",
-                            "--api-key-file", str(key_path)], "model.log")
+                            "--api-key-file", key_argument], "model.log")
         state["model_pid"] = model_child.pid
         write_json(state_path, state)
         wait_ready(root, nonce, children, model_port, "/health", key)
