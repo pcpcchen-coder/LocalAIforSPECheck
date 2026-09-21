@@ -250,15 +250,26 @@ def test_failed_start_releases_folder_lock_and_cleans_only_its_session_files(tmp
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows Job Objects are OS-specific")
-def test_closing_windows_job_terminates_owned_child_and_preserves_other_process():
-    owned = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+def test_closing_windows_job_terminates_owned_child_and_preserves_other_process(tmp_path):
+    ready = tmp_path / "owned-ready"
+    completed = tmp_path / "owned-finished-naturally"
+    owned = subprocess.Popen([
+        sys.executable, "-c",
+        "from pathlib import Path; import sys, time; "
+        "Path(sys.argv[1]).touch(); time.sleep(60); Path(sys.argv[2]).touch()",
+        str(ready), str(completed),
+    ])
     unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     job = launcher.ChildJob()
     try:
+        wait_for(lambda: ready.exists())
+        assert owned.poll() is None
         job.add(owned)
         job.close()
         owned.wait(timeout=10)
-        assert owned.returncode != 0
+        # Closing a Windows Job Object can report exit code 0. The child must
+        # exit before its 60-second sleep completes, without reaching its end.
+        assert not completed.exists()
         assert unrelated.poll() is None
     finally:
         job.close()
