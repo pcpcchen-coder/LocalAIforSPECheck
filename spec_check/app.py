@@ -166,7 +166,10 @@ def create_app(data_dir=None):
 
     @app.get('/api/health')
     def health():
-        return {'status':'ok','version':__version__,'app':'LocalAIforSPECheck'}
+        response = {'status':'ok','version':__version__,'app':'LocalAIforSPECheck'}
+        if os.environ.get('SPEC_CHECK_INSTANCE'):
+            response['instance_id'] = os.environ['SPEC_CHECK_INSTANCE']
+        return response
 
     @app.get('/api/settings')
     def settings_read():
@@ -321,6 +324,10 @@ def create_app(data_dir=None):
                 raise ValueError('請先在模型設定讀取並選擇本地模型。')
             run = dict(id=uid(),project_id=project_id,project_name=project['name'],status='queued',created_at=now(),finished_at=None,mode=values.mode,settings=public_settings(settings),document_ids=[d['id'] for d in documents],documents=documents,total=sum(len(d['blocks']) for d in standards),completed=0,error=None,
                        app_version=__version__,prompt_version=PROMPT_VERSION,prompt_sha256=PROMPT_SHA256,scoring='(符合 + 0.5 × 部分符合) / 全部規範文字區塊 × 100',limitations=['文字區塊掃描完整不代表所有原子要求已辨識。','圖像、掃描頁、跨頁表格與上下文應人工確認。','文件符合度參考分數不是法規認證或安全合格證明。'])
+            if (values.mode == 'local' and os.environ.get('SPEC_CHECK_PORTABLE') == '1'
+                    and settings['base_url'] == os.environ.get('SPEC_CHECK_PORTABLE_BASE_URL')
+                    and settings['model'] == os.environ.get('SPEC_CHECK_PORTABLE_MODEL')):
+                run['portable_model_sha256'] = os.environ.get('SPEC_CHECK_MODEL_SHA256', '')
             store.put('run',run,project_id)
             queue(run,settings)
             return full_run(run['id'])
@@ -349,7 +356,20 @@ def create_app(data_dir=None):
             if run['status'] not in {'cancelled','interrupted','failed'}:
                 raise ValueError('只有已停止或中斷的比對可以繼續。')
             # Preserve original model/config, using only the current locally stored token.
-            settings = validate_settings(dict(run['settings'],api_key=get_settings().get('api_key','')))
+            current = get_settings()
+            resume_settings = dict(run['settings'],api_key=current.get('api_key',''))
+            if run['mode'] == 'local' and run.get('portable_model_sha256'):
+                if (os.environ.get('SPEC_CHECK_PORTABLE') != '1'
+                        or run['portable_model_sha256'] != os.environ.get('SPEC_CHECK_MODEL_SHA256')
+                        or run['settings']['model'] != current.get('model')
+                        or current.get('base_url') != os.environ.get('SPEC_CHECK_PORTABLE_BASE_URL')
+                        or current.get('model') != os.environ.get('SPEC_CHECK_PORTABLE_MODEL')):
+                    raise ValueError('請使用原本的可攜版 GGUF 模型重新啟動後再繼續；更換模型請建立新比對。')
+                # A portable restart may choose a new free port. Preserve the original
+                # snapshot while recording the actual endpoint used for this resume.
+                resume_settings['base_url'] = current['base_url']
+                run.setdefault('resume_events', []).append(dict(created_at=now(),base_url=current['base_url'],model=current['model'],model_sha256=run['portable_model_sha256']))
+            settings = validate_settings(resume_settings)
             run.update(status='queued',finished_at=None,error=None)
             store.put('run',run,run['project_id'])
             queue(run,settings)

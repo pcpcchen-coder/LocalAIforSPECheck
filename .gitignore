@@ -31,3 +31,9 @@ build/
 Thumbs.db
 .idea/
 .vscode/
+
+# Portable build caches and downloaded binaries
+.portable-cache/
+portable-build/
+logs/
+*.gguf

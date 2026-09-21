@@ -1,0 +1,126 @@
+name: Windows portable release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'portable/**'
+      - 'spec_check/**'
+      - 'requirements*.txt'
+      - 'scripts/build_windows_portable.py'
+      - 'scripts/smoke_windows_portable.py'
+      - 'tests/**'
+      - '.github/workflows/portable-windows.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portable-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-test-release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            portable/requirements.lock.txt
+      - name: Test application and packaging logic
+        run: |
+          python -m pip install -r requirements-dev.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m compileall -q spec_check portable scripts
+      - name: Cache verified upstream downloads
+        uses: actions/cache@v4
+        with:
+          path: .portable-cache
+          key: portable-windows-${{ hashFiles('portable/build-lock.json', 'portable/requirements.lock.txt') }}
+      - name: Build full offline ZIP with model
+        run: python scripts/build_windows_portable.py --output-dir dist --cache-dir .portable-cache
+      - name: Test extracted ZIP, real inference, review, export and shutdown
+        timeout-minutes: 35
+        run: python scripts/smoke_windows_portable.py --archive dist/LocalAIforSPECheck-Windows-x64.zip --report dist/portable-smoke-report.json --work-dir "$env:RUNNER_TEMP"
+      - name: Keep small verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-verification-${{ github.sha }}
+          path: dist/portable-smoke-report.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Publish verified download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_SHA: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "windows-portable-v0.2.0-$($env:BUILD_SHA.Substring(0, 8))"
+          $zip = 'dist/LocalAIforSPECheck-Windows-x64.zip'
+          $checksums = 'dist/SHA256SUMS.txt'
+          $report = 'dist/portable-smoke-report.json'
+          foreach ($path in @($zip, $checksums, $report)) {
+            if (-not (Test-Path $path)) { throw "Missing release asset: $path" }
+          }
+          $verification = Get-Content -Raw $report | ConvertFrom-Json
+          if (-not $verification.passed) { throw 'Portable integration verification did not pass.' }
+          if ((Get-Item $zip).Length -ge 2GB) { throw 'ZIP exceeds GitHub release asset limit.' }
+          $notes = @"
+          Windows 10/11 x64 免安裝版。下載 **LocalAIforSPECheck-Windows-x64.zip**，完整解壓縮後雙擊 **Start.bat**；結束時使用 **Stop.bat**。
+
+          ZIP 包含可攜式 Python、所有 Python 套件、llama.cpp CPU 推論服務及 Qwen3.5-2B Q6_K 入門模型，初次啟動不需下載模型、不需安裝 Python 或 LM Studio。
+
+          2B 模型用於入門與流程驗證。正式技術文件請先以人工標註案例驗收，必要時換較大 GGUF；模型輸出仍須人工覆核。公司若以應用程式控管禁止 EXE 執行，仍須依公司政策處理。
+
+          已在 Windows CI 對本 ZIP 做：中文及空白路徑、限制 PATH、內附 Python 套件、連接埠衝突、真實 CPU 模型 JSON 比對與原文證據、人工覆核紀錄、HTML/XLSX/JSON 匯出、重啟保存與停止服務測試。這不是乾淨企業電腦驗證或模型準確率評測。
+
+          操作與限制：[Windows Portable 說明](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/docs/WINDOWS_PORTABLE.md)
+
+          Source commit: $env:BUILD_SHA
+          "@
+          $notes | Set-Content -Encoding utf8 dist/release-notes.md
+          # A commit-specific tag prevents replacing a previously published ZIP.
+          $existingText = gh release view $tag --json isDraft,assets 2>$null
+          $exists = $LASTEXITCODE -eq 0
+          if ($exists) {
+            $existing = $existingText | ConvertFrom-Json
+            if (-not $existing.isDraft) {
+              $names = @($existing.assets | ForEach-Object { $_.name })
+              foreach ($name in @('LocalAIforSPECheck-Windows-x64.zip', 'SHA256SUMS.txt', 'portable-smoke-report.json')) {
+                if ($name -notin $names) { throw "Existing published release is missing asset: $name" }
+              }
+              Write-Host "This commit already has a published verified release: $tag"
+              exit 0
+            }
+          } else {
+            gh release create $tag --target $env:BUILD_SHA --draft --title 'LocalAIforSPECheck Windows Portable v0.2.0' --notes-file dist/release-notes.md
+            if ($LASTEXITCODE -ne 0) { throw 'Failed to create release draft.' }
+          }
+          gh release upload $tag $zip $checksums $report --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to upload portable release assets.' }
+          gh release edit $tag --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to publish portable release.' }
+          @"
+          ### Windows Portable ZIP published
+          - [Download ZIP](https://github.com/$env:GH_REPO/releases/download/$tag/LocalAIforSPECheck-Windows-x64.zip)
+          - [Checksums and verification report](https://github.com/$env:GH_REPO/releases/tag/$tag)
+          "@ >> $env:GITHUB_STEP_SUMMARY

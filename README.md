@@ -1,6 +1,6 @@
 # LocalAIforSPECheck｜本機產品規格比對與人工覆核
 
-把一份產品規格，與多份技術規範逐段比對；查看各規範的文件符合度、差異、產品原文證據，並記錄同仁的覆核結果。文件與運算資料留在本機；模型由 LM Studio 或提供相容 API 的本機服務執行。
+把一份產品規格，與多份技術規範逐段比對；查看各規範的文件符合度、差異、產品原文證據，並記錄同仁的覆核結果。文件與運算資料留在本機。Windows Portable 版內附 Python、模型服務及入門模型，解壓縮後即可使用；原始碼版也可連接 LM Studio 或相容本機服務。
 
 適合用於規格初篩、供應商文件比較、設計差異清單與覆核交接。**AI 的輸出是待確認的比對建議，不能取代工程師簽核，也不保證找出所有原子條件的差異。**
 
@@ -8,19 +8,23 @@
 
 [人工覆核畫面](docs/screenshots/review.png) · [合成示範 HTML 報告（下載後以瀏覽器開啟）](examples/demo_report.html) · [開發驗證紀錄](docs/TEST_REPORT.md)
 
-## 一般同仁的日常操作
+## Windows：下載完整免安裝版
 
-請先由 IT 完成一次安裝。之後：
+[**下載 Windows x64 Portable 完整 ZIP**](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases/latest/download/LocalAIforSPECheck-Windows-x64.zip) · [版本、檢查碼與發佈內容](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases) · [完整操作步驟與排錯](docs/WINDOWS_PORTABLE.md)
 
-1. 開啟 LM Studio，載入 IT 選定的模型並啟動本機 API；Bionic 僅在你的版本提供相容本機 API 時使用。
-2. Windows 雙擊 `start_windows.bat`；macOS 雙擊 `start_macos.command`。Linux 執行 `./start_linux.sh`。
-3. 瀏覽器會開啟 `http://127.0.0.1:8765`；啟動視窗請保持開啟。
-4. 首次先使用畫面的示範功能，熟悉比對、覆核與匯出。示範不需要模型。
-5. 建立專案，上傳一份產品文件與一份以上規範，預覽擷取文字並逐份確認。
-6. 設定模型連線，測試成功後執行比對；依差異逐筆確認、更正或重新開啟覆核。
-7. 下載 HTML／Excel／JSON 報告。詳細步驟見 [同仁操作指南](docs/USER_GUIDE.md)。
+請下載 Release 中的 **`LocalAIforSPECheck-Windows-x64.zip`**，不要下載 GitHub 的 `Source code (zip)` 或綠色 Code 按鈕中的 ZIP。原始碼 ZIP 不含執行環境或模型。
 
-**每次啟動只在本機提供介面。** 重複雙擊會開啟既有服務；若同一連接埠被其他程式占用，會顯示訊息，不會關閉其他程式。
+1. 在 Windows 10／11 **64 位元 x64** 電腦，將 ZIP「全部解壓縮」到自己可寫入的資料夾，例如「文件」中的 `規格比對工具`。不要直接在 ZIP 裡雙擊執行。
+2. 進入解壓後的資料夾，雙擊 **`Start.bat`**。等待內附模型載入，瀏覽器會自動開啟；啟動視窗請保持開啟。
+3. 第一次先使用介面的範例示範，熟悉操作。接著建立自己的專案，上傳一份產品文件與一份以上規範，逐份預覽並確認原文。
+4. 按「開始本機模型比對」，查看排序、差異及產品原文；逐筆確認或修正判定，留下姓名與說明。
+5. 在「匯出與追溯」下載 HTML／Excel／JSON。完成後先停止或等待比對結束，再雙擊 **`Stop.bat`**。
+
+**完整 ZIP 內附 Qwen3.5-2B Q6_K、CPU 模型服務、Python 與所需套件，不需要安裝 Python、LM Studio、Bionic 或顯示卡驅動，啟動及比對時不需要網路。** 初次下載 ZIP 需要網路。內附 2B 模型供操作驗證與初篩；複雜技術條款建議改用較大模型並依實際文件驗收，全部結論仍需人工覆核。模型選擇見 [MODELS.md](docs/MODELS.md)。
+
+可攜版不安裝 Windows 服務，不修改系統 PATH 或登錄設定，也不需要管理員權限。若公司政策禁止執行外來 EXE，仍須由 IT 核准；本工具不繞過端點管制。
+
+macOS／Linux 或需要自行管理模型服務者，使用下方原始碼安裝方式。
 
 ## 功能範圍
 
@@ -38,11 +42,11 @@
 
 功能與格式的精確限制見 [操作指南](docs/USER_GUIDE.md)；模型與 LM Studio／Bionic 設定見 [模型選擇與部署](docs/MODELS.md)。
 
-## IT：第一次安裝
+## 進階：原始碼安裝與既有模型服務
 
 需要 Python **3.11 以上**、可用瀏覽器、足夠磁碟空間，以及能執行所選模型的電腦。模型主機必須在同一部電腦；此版本只接受 loopback API 位址。
 
-可從 GitHub 下載 ZIP 並完整解壓縮，或使用 Git：
+此方式不適用於「解壓即可使用」的需求；Windows 一般同仁請使用上方 Portable 版。開發者可從 GitHub 下載原始碼並完整解壓縮，或使用 Git：
 
 ```bash
 git clone https://github.com/pcpcchen-coder/LocalAIforSPECheck.git
@@ -68,7 +72,7 @@ chmod +x start_macos.command start_linux.sh
 .venv/bin/python launcher.py
 ```
 
-若系統有多個 Python，先以 `python --version` 或 `python3 --version` 確認實際版本。macOS 的系統 Python 不一定符合要求。首次下載 Python 套件、模型需要網路；完成安裝且模型已下載後，本機比對不需要對外連線。公司禁止安裝時，應由 IT 在核准環境部署，或提供已核准的 Python 執行環境；目前並非免安裝的單一 EXE。
+若系統有多個 Python，先以 `python --version` 或 `python3 --version` 確認實際版本。macOS 的系統 Python 不一定符合要求。首次下載 Python 套件、模型需要網路；完成安裝且模型已下載後，本機比對不需要對外連線。公司設備不能安裝軟體時，可使用已內附環境與模型的 Windows Portable ZIP；仍須符合公司對可執行檔的使用政策。
 
 LM Studio 預設連線欄位為 `http://127.0.0.1:1234/v1`；請依實際 Server 畫面核對。**Bionic 不預設端口**，必須使用該工具實際顯示且支援 OpenAI 相容介面的 loopback URL。模型 ID 必須與 `/v1/models` 回傳一致。請先測試連線，再存設定並執行。
 
@@ -114,7 +118,9 @@ python -m uvicorn spec_check.app:app --host 127.0.0.1 --port 8765 --workers 1
 
 ## 備份、還原與更新
 
-預設工作資料在專案的 `data/`。可由環境變數 `SPEC_CHECK_DATA` 指向其他本機資料夾，供 IT 管理。原始規格、擷取文字、比對結果、設定與覆核歷史均應視為敏感資料。
+**Portable 版：先雙擊 `Stop.bat` 並等待停止，再完整複製整個解壓資料夾**，保留模型、設定、工作資料及日誌。更新時解壓到另一個新資料夾，保留舊版備份，再依 [Portable 更新步驟](docs/WINDOWS_PORTABLE.md#更新備份與搬移) 處理。不要直接將新 ZIP 覆蓋正在使用的資料夾。
+
+原始碼版預設工作資料在專案的 `data/`。可由環境變數 `SPEC_CHECK_DATA` 指向其他本機資料夾，供 IT 管理。原始規格、擷取文字、比對結果、設定與覆核歷史均應視為敏感資料。
 
 1. 等待本次比對結束，或按取消並等待狀態更新。
 2. 在啟動視窗按 `Ctrl+C` 停止程式。
@@ -137,6 +143,8 @@ python -m pytest
 
 | 文件 | 用途 |
 |---|---|
+| [WINDOWS_PORTABLE.md](docs/WINDOWS_PORTABLE.md) | Windows 完整 ZIP、免安裝啟動、模型更換、備份與排錯 |
+| [PORTABLE_COMPONENTS.md](docs/PORTABLE_COMPONENTS.md) | 可攜版組件來源、固定版本、授權與下載驗證 |
 | [USER_GUIDE.md](docs/USER_GUIDE.md) | 一般同仁的完整操作、覆核及排錯 |
 | [MODELS.md](docs/MODELS.md) | 模型推薦、硬體取捨、LM Studio／Bionic 設定 |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架構、資料流、API、計分與延續處理 |

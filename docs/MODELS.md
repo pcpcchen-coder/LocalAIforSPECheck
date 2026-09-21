@@ -1,8 +1,18 @@
 # 本地模型推薦與連線設定
 
-查證日期：2026-09-21。本文件區分「官方已確認能力」、「本工具設定」及「尚待實測的部署建議」。本專案開發環境沒有使用者的本地模型服務，因此**沒有宣稱已在真實 Qwen 模型、Mac 或 Windows 電腦完成準確率／速度驗證**。
+查證日期：2026-09-21。本文件區分「官方已確認能力」、「本工具設定」及「尚待實測的部署建議」。本專案沒有使用者的真實公司文件，因此**沒有宣稱已達成正式文件的準確率或差異召回率目標**。可攜版的組件固定版本見 [PORTABLE_COMPONENTS.md](PORTABLE_COMPONENTS.md)；建置與冒煙測試結果以各 GitHub Release 對應的 CI 紀錄為準。
 
 ## 1. 先選哪個模型
+
+### Windows Portable 已內附入門模型
+
+完整 ZIP 使用 **Qwen3.5-2B Q6_K**（單一模型檔約 1.56 GB）與 llama.cpp CPU 服務，第一次啟動不需下載任何模型。它的用途是讓一般同仁先完成離線操作、格式相容與小型初篩；2B 模型的能力不宜直接視為能可靠理解複雜公差、例外、跨條引用與全部差異。即使成功產生 JSON，仍要閱讀產品證據並逐筆覆核。
+
+[Qwen3.5-2B 官方模型卡](https://huggingface.co/Qwen/Qwen3.5-2B) · [GGUF 檔案來源](https://huggingface.co/lmstudio-community/Qwen3.5-2B-GGUF/tree/main)
+
+可攜版將模型放在 `models`。較大的相容 GGUF 也可先在有網路且獲准的電腦下載，再複製進 `models`；停止程式後用 `Choose_model.bat` 選擇，重新執行 `Start.bat`。本版打包 CPU 執行服務，沒有內附 GPU 後端；大模型能載入不代表 CPU 處理時間適合大量條文。詳細操作見 [可攜版指南](WINDOWS_PORTABLE.md#換用較大的模型)。
+
+### 正式文件的候選模型
 
 建議先以 **Qwen3.5-9B** 完成安裝與一小組真實推論測試；若有 **32GB Apple Silicon Mac**，再試 **Qwen3.8-27B Q4_K_M** 作為主力候選。先用較小模型打通流程，較容易分辨連線、文件解析及模型能力問題。
 
@@ -27,9 +37,9 @@ Qwen3.8-27B 的官方模型卡與 LM Studio Community GGUF 已公開。它可處
 
 本工具目前將文件抽為文字區塊後送至模型，沒有直接傳送頁面影像。模型具有視覺能力，不代表本工具已自動支援掃描 PDF、圖片尺寸線或電路圖；這些內容須先處理並人工確認文字抽取結果。
 
-## 2. LM Studio：本工具的主要連線方式
+## 2. LM Studio：原始碼版與自管模型的連線方式
 
-由熟悉電腦的同仁完成一次設定，日常使用者之後從比對工具介面操作即可。
+**Portable 版不需要以下安裝步驟。** 下列方式適用於原始碼版，或經核准且由熟悉電腦的同仁自行管理模型服務的環境。
 
 1. 安裝 LM Studio，並更新相應模型執行引擎。
 2. 搜尋上表模型，選擇 `lmstudio-community/Qwen3.5-9B-GGUF` 或 `lmstudio-community/Qwen3.8-27B-GGUF`，下載所需量化。
@@ -41,7 +51,7 @@ Qwen3.8-27B 的官方模型卡與 LM Studio Community GGUF 已公開。它可處
 
 LM Studio 官方確認 Developer 頁面可啟動 API server，且 port 可自行修改。1234 是官方文件使用的示例，不是不可修改的值。[啟動 API server](https://lmstudio.ai/docs/developer/core/server)、[Server Settings](https://lmstudio.ai/docs/developer/core/server/settings)
 
-本工具只接受同一台電腦的 `localhost` 或數字 loopback 地址，可修改 port。v0.1 不支援連至其他同仁電腦、區網模型伺服器或雲端服務；不要把遠端地址填入此版本。工具後端呼叫模型 API，因此此使用方式不需要額外打開瀏覽器 CORS 或 Serve on Local Network。
+本工具只接受同一台電腦的 `localhost` 或數字 loopback 地址，可修改 port。此版本不支援連至其他同仁電腦、區網模型伺服器或雲端服務；不要把遠端地址填入此版本。工具後端呼叫模型 API，因此此使用方式不需要額外打開瀏覽器 CORS 或 Serve on Local Network。
 
 ### API 與認證
 
@@ -50,6 +60,8 @@ LM Studio 官方確認 Developer 頁面可啟動 API server，且 port 可自行
 LM Studio 預設不要求 API 認證。若管理員在 **Server Settings** 開啟 **Require Authentication**，請由 **Manage Tokens** 建立 token，填入本工具的 API Key 欄位；請求會以 Bearer token 傳送。無須購買或填入 OpenAI 雲端 API key。[LM Studio Authentication](https://lmstudio.ai/docs/developer/core/authentication)
 
 ### 本工具預設值
+
+以下為原始碼版預設值。**Portable 每次啟動會自動設定內附模型連線**，通常使用 `127.0.0.1:1235`（占用時改用其他可用埠）、生成新的本機 API key、將 timeout 設為 600 秒及 temperature 設為 0；模型以 16K context 載入並關閉思考模式。不必手動輸入這些設定，亦不要將預設的 LM Studio 1234 位址覆蓋可攜版自動設定。
 
 | 設定 | 預設 | 說明 |
 |---|---|---|
@@ -104,11 +116,13 @@ Bionic 下載與使用本地模型的官方步驟為：
 
 以上步驟可在官方文件確認。[下載本地模型](https://lmstudio.ai/docs/bionic/models/download-local-models)、[選擇 Local／Cloud／Remote](https://lmstudio.ai/docs/bionic/models)
 
-本工具正式接法優先使用 LM Studio API。若使用者的 Bionic 版本確實提供同一台電腦上的 OpenAI-compatible HTTP server，可填入其實際 Base URL，完成讀取模型與上述 Local 冒煙測試後再使用；這屬於**待使用者環境驗證的相容連線**。若沒有提供 server，可讓 Bionic 閱讀匯出的報告，並由 LM Studio 提供本工具需要的推論服務。
+原始碼版的正式接法優先使用 LM Studio API；Portable 版使用內附模型服務。若使用者的 Bionic 版本確實提供同一台電腦上的 OpenAI-compatible HTTP server，可填入其實際 Base URL，完成讀取模型與上述 Local 冒煙測試後再使用；這屬於**待使用者環境驗證的相容連線**。若沒有提供 server，可讓 Bionic 閱讀匯出的報告，並由 LM Studio 提供本工具需要的推論服務。
 
 2026-09-19 的 Bionic 1.1.5 changelog 已列出 Mac 上 Qwen3.8 的 Splash 引擎支援；這不能據此保證本工具的速度或第三方 API server 可用。[官方 changelog](https://lmstudio.ai/changelog)
 
 ## 5. 離線準備與正式驗收
+
+Windows Portable 完整 ZIP 已包含 Python 執行環境、套件、CPU 模型服務及一個 2B 模型；在下載、解壓縮完成後，日常啟動、比對、覆核與匯出均在單機執行。更換模型或更新完整 ZIP 時，才需另行取得新檔案。此方式與自行安裝 LM Studio 的離線準備不同。
 
 LM Studio 官方說明：下載模型及執行引擎後，本地推論與 API server 可離線運作；模型搜尋、下載與更新仍需要網路。部署時也要事先安裝本工具所需的 Python 依賴。[Offline Operation](https://lmstudio.ai/docs/app/offline)
 

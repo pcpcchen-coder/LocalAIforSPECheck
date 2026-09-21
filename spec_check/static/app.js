@@ -393,7 +393,7 @@ function renderReports() {
   for (const format of ["html","xlsx","json"]) $("#export-" + format).href = `/api/runs/${encodeURIComponent(run.id)}/export?format=${format}`;
   const docs = run.documents || [];
   $("#snapshot-summary").innerHTML = `<dl class="snapshot-grid"><dt>比對批次</dt><dd>${escapeHTML(run.id)}</dd><dt>執行模式</dt><dd>${run.mode === "demo" ? "範例固定示範（沒有呼叫模型）" : "本機模型實際比對"}</dd><dt>執行狀態</dt><dd>${RUN_STATUS[run.status] || escapeHTML(run.status)}${run.status !== "completed" ? " · 尚未完成，參考分數為暫定" : ""}</dd><dt>建立／完成</dt><dd>${dateLabel(run.created_at)} ／ ${dateLabel(run.finished_at)}</dd><dt>模型</dt><dd>${escapeHTML(run.settings?.model || (run.mode === "demo" ? "固定示範判斷" : "—"))}</dd><dt>來源快照</dt><dd><ul class="snapshot-files">${docs.map((doc) => `<li>${escapeHTML(doc.name)} · ${doc.role === "product" ? "產品" : "規範"} · ${integer(doc.blocks?.length)} 區塊<br><small>SHA-256：${escapeHTML(doc.sha256 || "—")}</small></li>`).join("")}</ul></dd></dl>`;
-  $("#snapshot-json").textContent = JSON.stringify({id:run.id,mode:run.mode,status:run.status,created_at:run.created_at,finished_at:run.finished_at,settings:run.settings,documents:run.documents},null,2);
+  $("#snapshot-json").textContent = JSON.stringify({id:run.id,mode:run.mode,status:run.status,created_at:run.created_at,finished_at:run.finished_at,settings:run.settings,portable_model_sha256:run.portable_model_sha256,resume_events:run.resume_events,documents:run.documents},null,2);
   renderExportHistory();
 }
 function renderExportHistory() {
