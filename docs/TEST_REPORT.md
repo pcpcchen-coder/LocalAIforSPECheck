@@ -7,6 +7,10 @@
 | 驗證 | 結果 |
 |---|---|
 | Linux Python 3.12 完整自動測試 | 224 項通過、48 個子案例通過；1 項 Windows Job Object 測試依平台略過。引擎含 27 項原子抽取／相關性／證據與候選覆蓋測試 |
+| Windows／macOS／Linux × Python 3.11／3.12 | [六組 CI 全部通過](https://github.com/pcpcchen-coder/LocalAIforSPECheck/actions/runs/35684205240)，來源 commit `da97e9a53983171e2de63da0367e59c0d591c4d2`。兩組 Windows 均為 225 項及 48 個子案例通過，包含 Windows Job Object 測試 |
+| Windows Portable 鎖定依賴測試 | Python 3.13.15，225 項及 48 個子案例通過；接著建置並驗證實際 ZIP |
+| 模型分離成品 | ZIP 不含 GGUF；檔案 manifest／SHA-256、缺模型提示、獨立模型匯入校驗、無效代理下沿用模型、含中文及空白的路徑、受限 PATH 與埠號衝突均通過 |
+| Windows 真實 CPU 模型流程 | 舊版 48 V 合成條款得到有原文證據的 `match`；新版實際執行產品／標準抽取、來源保留、全庫初篩、逐項比對、風險 JSON 匯出及重啟保存。新版一筆結果為 `uncertain`、覆核優先度 `high`；沒有把待釐清結果冒充正確判定 |
 | 前端與語法 | `node --check`、Python `compileall`、`git diff --check` 通過 |
 | 新版 API 流程 | `tests/test_workflows.py` 11 項通過；涵蓋來源確認、項目修改／拆分與版本衝突、人工排除理由、不可變分析快照、風險覆核及完整歷程 |
 | 300 份標準的合成負載 | 實際經 API 上傳 300 份標準，批次抽取並確認；以每頁 100 份讀取。全庫初篩得到 300 筆，不因相關性低而自動排除，輕量進度不帶原文與完整結果 |
@@ -18,6 +22,10 @@
 | 真實 Chromium 操作 | 完整上傳／抽取／確認／初篩／人工排除／逐項比對／風險覆核／HTML 下載及封存／重新開啟通過；阻塞模型時顯示真實等待、輕量輪詢不重讀原文，斷線停止動畫且可恢復；五個主要頁面在 390px 無水平溢出，無非預期 console／page error |
 | 舊版執行現況回歸 | `/classic` 的真實 Chromium 測試通過：首筆 0% 等待、計時與輕量輪詢、斷線恢復、完成後結果讀取失敗及重試、終止時計時凍結、取消、檔名轉義與窄版面均正常 |
 | 錯誤保留與機密 | 模型工作拋出錯誤時保留「待釐清」結果，不宣稱未載明／符合；API 與報告不包含 API key 或模型拋出的敏感內容 |
+
+Windows CI 期間修正兩項跨平台問題：模型下載工具在隔離模式 CLI 下主動將標準輸出／錯誤設為 UTF-8，避免中文路徑或訊息遇到系統編碼而失敗；300 份文件案例的抽取及初篩等待上限改為 180 秒、輪詢間隔 0.2 秒，以容納 Windows 檔案與 SQLite 寫入時間。文件數與全部行為斷言維持不變；這是流程正確性測試，不是處理速度基準。
+
+成品驗證來源：[Windows Portable 建置與真模型驗證](https://github.com/pcpcchen-coder/LocalAIforSPECheck/actions/runs/35684205262)。[v0.3.0 Release](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases/tag/windows-portable-v0.3.0-da97e9a5) 已公開程式 ZIP、`SHA256SUMS.txt` 與 `portable-smoke-report.json`。ZIP 為 41,118,695 bytes（約 41 MB），SHA-256 為 `77f35f2a31eceba6815b80911842168d288f9c16e5a7396a577ec2b856fd43bb`；獨立模型為 1,556,390,368 bytes。Windows runner 並非乾淨的公司電腦；新版真模型案例的待釐清結果也顯示，入門 2B 模型尚不能據此視為已通過工程判斷驗收。
 
 新版畫面（僅合成資料）：[差異與風險清單](screenshots/workspace-risks.png)、[證據與人工確認歷程](screenshots/workspace-review.png)。截圖已檢視，未使用公司文件。
 
