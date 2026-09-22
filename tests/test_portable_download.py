@@ -206,3 +206,21 @@ def test_cli_manual_import_uses_only_stdlib_and_unicode_paths(tmp_path):
     assert result.returncode == 0, result.stderr
     assert (root / "models" / asset["filename"]).read_bytes() == PAYLOAD
     assert "模型已就緒" in result.stdout
+
+
+def test_cli_reconfigures_redirected_non_unicode_streams_before_printing(tmp_path, monkeypatch):
+    root, asset = portable_root(tmp_path)
+    source = tmp_path / "手動 下載.gguf"
+    source.write_bytes(PAYLOAD)
+    stdout_bytes, stderr_bytes = io.BytesIO(), io.BytesIO()
+    stdout = io.TextIOWrapper(stdout_bytes, encoding="cp1252", errors="strict")
+    stderr = io.TextIOWrapper(stderr_bytes, encoding="cp1252", errors="strict")
+    monkeypatch.setattr(download.sys, "stdout", stdout)
+    monkeypatch.setattr(download.sys, "stderr", stderr)
+    monkeypatch.setattr(download.sys, "argv", [download.__file__, "--root", str(root), "--source", str(source)])
+    assert download.main() == 0
+    stdout.flush()
+    stderr.flush()
+    assert stdout.encoding == stderr.encoding == "utf-8"
+    assert "模型已就緒" in stdout_bytes.getvalue().decode("utf-8")
+    assert (root / "models" / asset["filename"]).read_bytes() == PAYLOAD

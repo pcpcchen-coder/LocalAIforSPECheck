@@ -29,7 +29,7 @@ def ok(response, status=200):
     return response.json()
 
 
-def wait(client, path, statuses=("completed",), timeout=15):
+def wait(client, path, statuses=("completed",), timeout=15, poll_interval=0.01):
     deadline = time.monotonic() + timeout
     state = None
     while time.monotonic() < deadline:
@@ -38,7 +38,7 @@ def wait(client, path, statuses=("completed",), timeout=15):
             return state
         if state["status"] == "failed" and "failed" not in statuses:
             pytest.fail(f"Background job failed: {state}")
-        time.sleep(0.01)
+        time.sleep(poll_interval)
     pytest.fail(f"Did not reach {statuses}: {state}")
 
 
@@ -78,13 +78,14 @@ def prepare(client, name, text, role="standard"):
     return confirm(client, extract(client, upload(client, name, text, role)))
 
 
-def analyse(client, product, standards, name="合成分析"):
+def analyse(client, product, standards, name="合成分析", *, timeout=15, poll_interval=0.01):
     created = ok(client.post(PREFIX + "/analyses", json={
         "name": name, "product_id": product["id"], "library_ids": [d["id"] for d in standards],
         "context": {"purpose": "合成儲能控制器", "environment": "室內", "market": "未知", "notes": "僅軟體驗收"},
         "comparison_mode": "focused",
     }))
-    return wait(client, f"/analyses/{created['id']}", ("awaiting_selection",))
+    return wait(client, f"/analyses/{created['id']}", ("awaiting_selection",),
+                timeout=timeout, poll_interval=poll_interval)
 
 
 def compare(client, analysis):
@@ -181,7 +182,9 @@ def test_three_hundred_standards_paged_screened_without_silent_exclusion(client,
     product = prepare(client, "產品.txt", "額定電壓：48 V\n", "product")
     standards = [upload(client, f"合成標準-{n:03d}.txt", f"額定電壓：{n + 24} V\n") for n in range(300)]
     job = ok(client.post(PREFIX + "/library/extract", json={"document_ids": [d["id"] for d in standards]}))
-    wait(client, f"/jobs/{job['id']}", timeout=45)
+    # This checks 300 durable document lifecycles, not processing speed.
+    # Windows CI filesystem overhead needs a longer bound and fewer poll reads.
+    wait(client, f"/jobs/{job['id']}", timeout=180, poll_interval=0.2)
     summaries = []
     for offset in (0, 100, 200):
         page = ok(client.get(PREFIX + "/library", params={"offset": offset, "limit": 100}))
@@ -191,7 +194,8 @@ def test_three_hundred_standards_paged_screened_without_silent_exclusion(client,
         summaries.extend(page["items"])
     assert len({d["id"] for d in summaries}) == 300
     ok(client.post(PREFIX + "/library/confirm", json={"documents": [{"id": d["id"], "expected_version": d["version"]} for d in summaries], "reviewer": REVIEWER, "note": "已檢查本測試產生的 300 份合成規範。", "acknowledge_warnings": True}))
-    analysis = analyse(client, product, [])  # Empty selection means all library documents.
+    # Empty selection means all library documents; allow the same CI I/O bound.
+    analysis = analyse(client, product, [], timeout=180, poll_interval=0.2)
     scanned = []
     for offset in (0, 100, 200):
         page = ok(client.get(f"{PREFIX}/analyses/{analysis['id']}/screening", params={"offset": offset, "limit": 100}))

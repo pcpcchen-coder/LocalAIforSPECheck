@@ -181,6 +181,11 @@ def acquire_model(root: Path, *, source: Path | None = None, progress=print) -> 
 
 
 def main() -> int:
+    # Isolated Python (-I) ignores PYTHONUTF8/PYTHONIOENCODING. Make batch and
+    # redirected console output deterministic even on non-Chinese Windows.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--source", type=Path, help="Import a manually downloaded pinned model, without network access")
