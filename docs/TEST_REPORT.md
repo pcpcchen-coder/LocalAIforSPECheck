@@ -12,6 +12,10 @@
 | 真實 Chromium | 下載 ZIP、分次匯入、重新載入續作、修改資料使預覽失效、拒絕偽造引文、收齊套用、人工確認與歷程均通過；390px 外部萃取視窗無水平溢出、無 page error |
 | Portable 封裝 | Prompt 納入明確檔案清單；Windows 成品測試新增實際 ZIP 內的外部包下載、JSON 預覽／保存／套用與重啟保存檢查。實際發行驗證以該版 Release 的 portable-smoke-report.json 為準 |
 
+發行來源 commit：`37364cbd0361cdc0e612e86e64df1beb91a1649f`。[六組跨平台 CI](https://github.com/pcpcchen-coder/LocalAIforSPECheck/actions/runs/35706919907) 全部通過；[Windows 成品建置及整合驗證](https://github.com/pcpcchen-coder/LocalAIforSPECheck/actions/runs/35706920298) 也通過，Python 3.13.15 為 249 項與 48 個子案例通過。成品實際驗證新增的 `external_prompt_export_preview_import_activate` 與 `external_extraction_restart_persistence`，並保留所有既有模型、覆核、匯出及啟停檢查。
+
+[v0.3.1 Release](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases/tag/windows-portable-v0.3.1-37364cbd) 已公開 ZIP、檢查碼及成品報告。ZIP 為 41,305,193 bytes，SHA-256：`8e41e2b98e9c7a5cc65cf337fe9d25836eea745f888a8e6bb0ecd44e5a1890d9`；模型仍獨立下載。原有本機 2B 模型的新流程合成條款仍回傳 `uncertain`／`high`，此次沒有把外部匯入流程通過解讀為 ChatGPT 或本機模型的工程判斷準確率已驗收。
+
 Windows 成品測試首次發現新舊測試範例使用相同原文，正確觸發內容去重，導致後續檢查的文件已被重新套用。已將獨立測試改用不同原文，新增直接執行 Portable 外部交換 helper 的 API 回歸測試，並保留原本重啟確認狀態檢查。
 
 瀏覽器使用合成 JSON 模擬 ChatGPT 交付，不代表已呼叫 ChatGPT 或驗收真實規範的萃取準確率。沒有把產品或公司文件送到外部服務。[操作指南](EXTERNAL_EXTRACTION.md) 含完整流程、批次續作與修正命令；[完整 Prompt](CHATGPT_STANDARD_EXTRACTION_PROMPT.md) 與執行包使用相同內容。
