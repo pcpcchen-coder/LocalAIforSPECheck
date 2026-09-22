@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'portable/**'
+      - 'models/README.md'
       - 'spec_check/**'
       - 'requirements*.txt'
       - 'scripts/build_windows_portable.py'
@@ -54,11 +55,16 @@ jobs:
         with:
           path: .portable-cache
           key: portable-windows-${{ hashFiles('portable/build-lock.json', 'portable/requirements.lock.txt') }}
-      - name: Build full offline ZIP with model
+      - name: Build app ZIP without model
         run: python scripts/build_windows_portable.py --output-dir dist --cache-dir .portable-cache
-      - name: Test extracted ZIP, real inference, review, export and shutdown
+      - name: Obtain pinned model separately for Windows verification
+        run: |
+          $model = python -c "import json; from pathlib import Path; from scripts.build_windows_portable import download_asset; lock=json.loads(Path('portable/build-lock.json').read_text(encoding='utf-8')); print(download_asset(lock['model'], Path('.portable-cache')).resolve())"
+          if ($LASTEXITCODE -ne 0) { throw 'Independent model download or validation failed.' }
+          "PORTABLE_SMOKE_MODEL=$model" >> $env:GITHUB_ENV
+      - name: Test model import, extracted ZIP, real inference, review, export and shutdown
         timeout-minutes: 35
-        run: python scripts/smoke_windows_portable.py --archive dist/LocalAIforSPECheck-Windows-x64.zip --report dist/portable-smoke-report.json --work-dir "$env:RUNNER_TEMP"
+        run: python scripts/smoke_windows_portable.py --archive dist/LocalAIforSPECheck-Windows-x64.zip --report dist/portable-smoke-report.json --work-dir "$env:RUNNER_TEMP" --model-source "$env:PORTABLE_SMOKE_MODEL"
       - name: Keep small verification report
         if: always()
         uses: actions/upload-artifact@v4
@@ -87,15 +93,19 @@ jobs:
           if (-not $verification.passed) { throw 'Portable integration verification did not pass.' }
           if ((Get-Item $zip).Length -ge 2GB) { throw 'ZIP exceeds GitHub release asset limit.' }
           $notes = @"
-          Windows 10/11 x64 免安裝版。下載 **LocalAIforSPECheck-Windows-x64.zip**，完整解壓縮後雙擊 **Start.bat**；結束時使用 **Stop.bat**。
+          Windows 10/11 x64 免安裝版。下載 **LocalAIforSPECheck-Windows-x64.zip** 並完整解壓縮。初次使用請執行 **Download_model.bat**，模型就緒後執行 **Start.bat**；結束時使用 **Stop.bat**。
 
-          ZIP 包含可攜式 Python、所有 Python 套件、llama.cpp CPU 推論服務及 Qwen3.5-2B Q6_K 入門模型，初次啟動不需下載模型、不需安裝 Python 或 LM Studio。
+          ZIP 包含可攜式 Python、所有 Python 套件、llama.cpp CPU 推論服務，**不含 GGUF 模型**。模型與程式分開下載，之後更新程式可保留原本的 data 與 models。首次下載完成後可離線運作，不需安裝 Python 或 LM Studio。
+
+          [獨立模型直連、校驗碼與手動下載說明](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/models/README.md)。既有 v0.2 使用者可搬移舊版模型，不必重新下載。
+
+          v0.3 加入可重用標準文件庫、獨立規格抽取與人工確認、全庫相關性及適用性初篩、候選／全量項目比對，以及風險、待補證據、未對應產品項目與覆核匯出。所有標準預設保留，只有人工記錄理由後才會排除；相關性、文件差異與風險優先度分開呈現。
 
           執行現況區塊提供目前規範、條目、產品分段、請求等待時間、最近模型回覆、程式連線狀態與事件紀錄。完成百分比只計算已儲存條目；等待模型回覆時不會虛構 token 或推論百分比。
 
           2B 模型用於入門與流程驗證。正式技術文件請先以人工標註案例驗收，必要時換較大 GGUF；模型輸出仍須人工覆核。公司若以應用程式控管禁止 EXE 執行，仍須依公司政策處理。
 
-          已在 Windows CI 對本 ZIP 做：中文及空白路徑、限制 PATH、內附 Python 套件、連接埠衝突、真實 CPU 模型 JSON 比對與原文證據、人工覆核紀錄、HTML/XLSX/JSON 匯出、重啟保存與停止服務測試。這不是乾淨企業電腦驗證或模型準確率評測。
+          已在 Windows CI 對本 ZIP 做：ZIP 不含模型檢查、缺模型操作提示、獨立模型校驗匯入及離線重用、中文及空白路徑、限制 PATH、內附 Python 套件、連接埠衝突、真實 CPU 模型 JSON 比對與原文證據、人工覆核紀錄、HTML/XLSX/JSON 匯出、v0.3 真模型抽取、標準保留、逐項比對與風險 JSON 報告、重啟保存與停止服務測試。這不是乾淨企業電腦驗證或模型準確率評測。
 
           操作與限制：[Windows Portable 說明](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/docs/WINDOWS_PORTABLE.md)
 
@@ -127,4 +137,5 @@ jobs:
           ### Windows Portable ZIP published
           - [Download ZIP](https://github.com/$env:GH_REPO/releases/download/$tag/LocalAIforSPECheck-Windows-x64.zip)
           - [Checksums and verification report](https://github.com/$env:GH_REPO/releases/tag/$tag)
+          - [Separate model download](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/models/README.md)
           "@ >> $env:GITHUB_STEP_SUMMARY

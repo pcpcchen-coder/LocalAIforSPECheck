@@ -163,7 +163,8 @@ def model_path(root: Path) -> Path:
         raise ValueError("模型設定無效。請使用 Choose_model.bat 重新選擇。")
     path = (root / "models" / name).resolve()
     if path.parent != (root / "models").resolve() or not path.is_file():
-        raise ValueError("找不到模型。請完整解壓 ZIP，或用 Choose_model.bat 選擇 models 內的檔案。")
+        raise ValueError("找不到已選模型。新版 ZIP 不含模型；初次使用請執行 Download_model.bat。"
+                         "若已下載或從舊版搬移模型，請放入 models 資料夾，再用 Choose_model.bat 選擇。")
     with path.open("rb") as stream:
         if stream.read(4) != b"GGUF":
             raise ValueError("模型不是完整 GGUF 檔案，請重新取得模型。")
@@ -173,7 +174,7 @@ def model_path(root: Path) -> Path:
 def choose_model(root: Path) -> int:
     candidates = sorted(p for p in (root / "models").glob("*.gguf") if p.is_file())
     if not candidates:
-        print("找不到模型。請將 GGUF 檔案複製到 models 資料夾後再執行。")
+        print("找不到模型。請先執行 Download_model.bat，或將既有 GGUF 複製到 models 資料夾後再執行。")
         return 1
     print("請選擇下次啟動使用的模型：")
     for index, path in enumerate(candidates, 1):

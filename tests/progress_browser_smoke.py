@@ -123,7 +123,7 @@ def seed_project(request, base, name, standard_name="合成技術規範：直流
 def open_project(page, base, project_id):
     from playwright.sync_api import expect
 
-    page.goto(base)
+    page.goto(base + '/classic')
     page.wait_for_load_state("networkidle")
     target = page.locator(f'[data-project="{project_id}"]')
     target.click()

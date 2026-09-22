@@ -1,5 +1,40 @@
 # 開發驗證紀錄
 
+## 0.3.0 標準文件庫與風險覆核
+
+日期：2026-09-22。新版 API 測試使用合成文件與模型函式替身，瀏覽器測試則使用真實後端及可控制回覆的本地 HTTP 模型服務。這些測試驗證軟體流程與資料完整性，不代表真實模型對公司規格的準確率。
+
+| 驗證 | 結果 |
+|---|---|
+| Linux Python 3.12 完整自動測試 | 223 項通過、48 個子案例通過；1 項 Windows Job Object 測試依平台略過。引擎含 27 項原子抽取／相關性／證據與候選覆蓋測試 |
+| 前端與語法 | `node --check`、Python `compileall`、`git diff --check` 通過 |
+| 新版 API 流程 | `tests/test_workflows.py` 11 項通過；涵蓋來源確認、項目修改／拆分與版本衝突、人工排除理由、不可變分析快照、風險覆核及完整歷程 |
+| 300 份標準的合成負載 | 實際經 API 上傳 300 份標準，批次抽取並確認；以每頁 100 份讀取。全庫初篩得到 300 筆，不因相關性低而自動排除，輕量進度不帶原文與完整結果 |
+| 項目來源追溯 | 不存在的引文遭拒；即使另一區塊有相同文字，也不能將既有項目的來源搬到另一區塊；拆分後未涵蓋原文保留待處理 |
+| 覆蓋與排除 | 所選範圍完成與全庫完成分開；存在人工排除標準時，全庫覆蓋及未對應產品清單不能宣稱完整 |
+| 中斷及續跑 | 比對取消不保存未完成結果；續跑不重複已保存項目；批次抽取已完成且已人工確認的文件不會被重抽或取消確認；重啟將活動工作標示中斷並沿檢查點繼續 |
+| 三種報告與封存 | HTML／XLSX／JSON 保留風險與人工理由；後續重新覆核不改動既有封存報告，下載 SHA-256 與封存紀錄一致 |
+| 舊版專案匯入 | 產品與標準原檔重用，新版須重新抽取確認；重複匯入不產生重複文件，舊版原文與確認狀態保持不變 |
+| 真實 Chromium 操作 | 完整上傳／抽取／確認／初篩／人工排除／逐項比對／風險覆核／HTML 下載及封存／重新開啟通過；阻塞模型時顯示真實等待、輕量輪詢不重讀原文，斷線停止動畫且可恢復；五個主要頁面在 390px 無水平溢出，無非預期 console／page error |
+| 舊版執行現況回歸 | `/classic` 的真實 Chromium 測試通過：首筆 0% 等待、計時與輕量輪詢、斷線恢復、完成後結果讀取失敗及重試、終止時計時凍結、取消、檔名轉義與窄版面均正常 |
+| 錯誤保留與機密 | 模型工作拋出錯誤時保留「待釐清」結果，不宣稱未載明／符合；API 與報告不包含 API key 或模型拋出的敏感內容 |
+
+新版畫面（僅合成資料）：[差異與風險清單](screenshots/workspace-risks.png)、[證據與人工確認歷程](screenshots/workspace-review.png)。截圖已檢視，未使用公司文件。
+
+重跑新版流程驗證（開發環境）：
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest tests/test_workflows.py tests/test_analysis_engine.py tests/test_analysis_exports.py -q
+python -m pip install playwright
+python -m playwright install chromium
+python tests/workspace_browser_smoke.py
+```
+
+`SPEC_CHECK_BROWSER` 可指定既有 Chromium；`SPEC_CHECK_SCREENSHOTS=0` 可避免重寫合成案例截圖。舊版專案及執行現況測試仍可分別執行 `tests/browser_smoke.py`、`tests/progress_browser_smoke.py`，使用 `/classic` 入口。
+
+**驗證界線：**300 份測試每份只有少量合成文字，模型函式回覆固定且迅速。這證明全庫清單、工作流程及持久化能處理此文件數量，不是數百份大型 PDF 的真實推論時間、記憶體用量或差異召回率。模型抽取／引用的軟體防線也不等於語意正確。正式文件、掃描頁、複雜表格及跨章條件仍依 [EVALUATION.md](EVALUATION.md) 與 [ACCEPTANCE.md](ACCEPTANCE.md) 驗收。
+
 ## 0.2.1 執行現況
 
 日期：2026-09-21。

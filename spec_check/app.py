@@ -21,6 +21,7 @@ from .storage import Store, ConflictError, now, uid
 from .engine import DEFAULT_SETTINGS, validate_settings, check_connection, compare_block, rank_results, ComparisonCancelled, PROMPT_VERSION, PROMPT_SHA256
 from .ingestion import extract_document
 from .exports import export_run
+from .workflows import WorkflowService, install_routes
 
 STATUSES = {'match','partial','mismatch','missing','uncertain'}
 MAX_UPLOAD = 30 * 1024 * 1024
@@ -60,6 +61,7 @@ def create_app(data_dir=None):
 
     @asynccontextmanager
     async def lifespan(app):
+        workflow.startup()
         for run in store.list('run'):
             if run['status'] in {'running','queued'}:
                 run.update(status='interrupted',finished_at=now(),error='程式上次中斷。可繼續尚未完成的條目。')
@@ -67,6 +69,7 @@ def create_app(data_dir=None):
                                 execution=dict(status='interrupted',error=run['error'],completed=store.count('result',run['id'])),
                                 request_started_at=None,finished_at=run['finished_at'])
         yield
+        workflow.shutdown()
         with lock:
             for event in cancel_events.values():
                 event.set()
@@ -110,6 +113,10 @@ def create_app(data_dir=None):
             return store.get('settings','local')['values']
         except KeyError:
             return copy.deepcopy(DEFAULT_SETTINGS)
+
+    workflow = WorkflowService(store, root, get_settings, executor, lock)
+    app.state.workflow = workflow
+    install_routes(app, workflow)
 
     def project_view(project_id):
         project = store.get('project',project_id)
@@ -540,6 +547,14 @@ def create_app(data_dir=None):
         if hashlib.sha256(path.read_bytes()).hexdigest() != item['sha256']:
             raise HTTPException(409,'封存報告雜湊不符，可能已被外部修改。請檢查備份。')
         return FileResponse(path,filename=item['filename'],media_type=item['_mime'])
+
+    @app.get('/')
+    def workspace():
+        return FileResponse(Path(__file__).parent/'static'/'workspace.html')
+
+    @app.get('/classic')
+    def classic():
+        return FileResponse(Path(__file__).parent/'static'/'index.html')
 
     app.mount('/static',StaticFiles(directory=Path(__file__).parent/'static'),name='assets')
     app.mount('/',StaticFiles(directory=Path(__file__).parent/'static',html=True),name='static')

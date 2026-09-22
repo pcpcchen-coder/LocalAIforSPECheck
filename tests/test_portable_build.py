@@ -88,6 +88,9 @@ def test_checked_in_build_inputs_are_fully_locked():
     assert lock["model"]["size"] < build.MAX_RELEASE_BYTES
     requirements = build.validate_requirements(build.REPOSITORY / "portable/requirements.lock.txt")
     assert {item.split("==")[0] for item in requirements} >= {"fastapi", "uvicorn", "pypdf", "python-docx", "openpyxl"}
+    model_page = (build.REPOSITORY / "models/README.md").read_text(encoding="utf-8")
+    assert lock["model"]["url"] in model_page
+    assert lock["model"]["sha256"] in model_page
 
 
 def test_cache_hit_rehashes_content_and_corrupt_download_is_never_used(tmp_path, monkeypatch):
@@ -140,6 +143,9 @@ def fake_repository(path):
         "portable/Start.bat": "@echo off",
         "portable/Stop.bat": "@echo off",
         "portable/Choose_model.bat": "@echo off",
+        "portable/Download_model.bat": "@echo off",
+        "portable/download_model.py": "# independent downloader",
+        "models/README.md": "Model download link",
         "README.md": "readme",
         "docs/USER_GUIDE.md": "guide",
     }
@@ -158,6 +164,9 @@ def test_application_allowlist_excludes_private_data_and_build_artifacts(tmp_pat
     build.copy_application(repository, bundle)
     assert (bundle / "app/spec_check/app.py").is_file()
     assert (bundle / "app/portable_launcher.py").is_file()
+    assert (bundle / "app/download_model.py").is_file()
+    assert (bundle / "Download_model.bat").is_file()
+    assert (bundle / "models/README.md").is_file()
     assert (bundle / "app/examples/product_48v_controller.txt").is_file()
     assert not list((bundle / "data").iterdir())
     assert not list((bundle / "logs").iterdir())
@@ -262,3 +271,14 @@ def test_dependency_closure_checks_windows_markers_and_versions(tmp_path):
     metadata.write_text("Metadata-Version: 2.1\nName: windows-only\nVersion: 1.0\n")
     with pytest.raises(ValueError, match="bundled version: 1.0"):
         build.validate_installed_dependencies(tmp_path, {"sys_platform": "win32"})
+
+
+@pytest.mark.parametrize("name", ["starter.gguf", "UPPER.GGUF", "starter.gguf.part"])
+def test_release_zip_rejects_bundled_models_even_outside_models_directory(tmp_path, name):
+    bundle = tmp_path / build.BUNDLE_NAME
+    (bundle / "app").mkdir(parents=True)
+    (bundle / "app" / name).write_bytes(b"GGUF model")
+    archive = tmp_path / "release.zip"
+    with pytest.raises(ValueError, match="must not include model"):
+        build.create_release_zip(bundle, archive)
+    assert not archive.exists()

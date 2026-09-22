@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build a self-contained Windows x64 ZIP, including an offline inference model.
+"""Build a Windows x64 runtime ZIP; the inference model is downloaded separately.
 
 Run on Windows with a build-time Python matching portable/build-lock.json.
-Only this build step needs internet or pip. Nothing installs on a user's PC.
+Build dependencies need internet and pip. Users download a model once, then run offline.
+Nothing installs on a user's PC.
 """
 from __future__ import annotations
 
@@ -226,13 +227,17 @@ def copy_application(repository: Path, bundle: Path) -> None:
         if source.suffix == ".py" or (relative.parts[0] == "static" and source.suffix in {".html", ".css", ".js", ".svg", ".png", ".ico"}):
             copy_file(source, bundle / "app" / "spec_check" / relative)
     copy_file(repository / "portable" / "launcher.py", bundle / "app" / "portable_launcher.py")
-    for name in ("Start.bat", "Stop.bat", "Choose_model.bat"):
+    copy_file(repository / "portable" / "download_model.py", bundle / "app" / "download_model.py")
+    copy_file(repository / "models" / "README.md", bundle / "models" / "README.md")
+    for name in ("Start.bat", "Stop.bat", "Choose_model.bat", "Download_model.bat"):
         copy_file(repository / "portable" / name, bundle / name)
     for name in ("product_48v_controller.txt", "standard_a_48v.txt", "standard_b_400v.txt", "gold_template.json", "demo_report.html"):
         copy_file(repository / "examples" / name, bundle / "app" / "examples" / name)
     copy_file(repository / "README.md", bundle / "README.md")
     for source in sorted((repository / "docs").glob("*.md")):
         copy_file(source, bundle / "docs" / source.name)
+    for source in sorted((repository / "docs" / "screenshots").glob("*.png")):
+        copy_file(source, bundle / "docs" / "screenshots" / source.name)
     for name in ("LICENSE", "LICENSE.txt", "LICENSE.md"):
         if (repository / name).is_file():
             copy_file(repository / name, bundle / name)
@@ -335,6 +340,8 @@ def write_manifest(bundle: Path, metadata: dict) -> Path:
 
 def create_release_zip(bundle: Path, destination: Path, *, max_bytes: int = MAX_RELEASE_BYTES) -> None:
     """Sorted members and fixed timestamps make subsequent content checks simple."""
+    if any(path.suffix.lower() in {".gguf", ".part"} for path in bundle.rglob("*")):
+        raise ValueError("Portable release ZIP must not include model binaries or partial downloads")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as output:
         for path in sorted([bundle, *bundle.rglob("*")]):
@@ -376,11 +383,8 @@ def build(args: argparse.Namespace) -> Path:
         install_dependencies(bundle / "runtime", requirements)
         install_engine(download_asset(lock["engine"], args.cache_dir), bundle / "engine", lock["engine"].get("executable", "llama-server.exe"))
         vc_runtime = copy_visual_cpp_runtime(bundle, required=lock.get("vc_runtime", {}).get("required", True))
-        if not args.skip_model:
-            model_name = lock["model"]["filename"]
-            if safe_archive_path(model_name).name != model_name or not model_name.lower().endswith(".gguf"):
-                raise ValueError("Model filename must be a single .gguf basename")
-            copy_file(download_asset(lock["model"], args.cache_dir), bundle / "models" / model_name)
+        # The model stays outside every app ZIP; Download_model.bat uses this lock.
+        validate_asset(lock["model"])
         for item in lock.get("licenses", []):
             filename = item["filename"]
             if safe_archive_path(filename).name != filename:
@@ -393,7 +397,7 @@ def build(args: argparse.Namespace) -> Path:
         copy_file(args.lock_file, bundle / "build-lock.json")
         copy_file(requirements, bundle / "requirements.lock.txt")
         notices = {"python": lock["python"], "engine": lock["engine"],
-                   "model": None if args.skip_model else lock["model"],
+                   "model": lock["model"], "model_distributed_separately": True,
                    "visual_cpp_runtime": vc_runtime, "python_packages": packages,
                    "licenses": lock.get("licenses", [])}
         (bundle / "licenses" / "THIRD_PARTY_NOTICES.json").write_text(json.dumps(notices, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -403,12 +407,12 @@ def build(args: argparse.Namespace) -> Path:
             (bundle / name).mkdir()
         for cache in list(bundle.rglob("__pycache__")):
             shutil.rmtree(cache)
-        write_manifest(bundle, {"platform": "windows-x64", "offline_model_included": not args.skip_model,
+        write_manifest(bundle, {"platform": "windows-x64", "offline_model_included": False,
+                                "model_download": lock["model"],
                                 "python_version": lock["python"]["version"],
                                 "dependency_lock_sha256": sha256_file(requirements),
                                 "build_lock_sha256": sha256_file(args.lock_file)})
-        suffix = "-no-model" if args.skip_model else ""
-        archive = args.output_dir / f"{BUNDLE_NAME}{suffix}.zip"
+        archive = args.output_dir / f"{BUNDLE_NAME}.zip"
         create_release_zip(bundle, archive)
     (args.output_dir / "SHA256SUMS.txt").write_text(f"{sha256_file(archive)}  {archive.name}\n", encoding="ascii")
     print(f"Created {archive} ({archive.stat().st_size:,} bytes)")
@@ -420,7 +424,7 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=REPOSITORY / "dist")
     parser.add_argument("--cache-dir", type=Path, default=REPOSITORY / ".portable-cache")
     parser.add_argument("--lock-file", type=Path, default=REPOSITORY / "portable" / "build-lock.json")
-    parser.add_argument("--skip-model", action="store_true", help="Development only: produce a visibly named no-model ZIP")
+    parser.add_argument("--skip-model", action="store_true", help=argparse.SUPPRESS)  # compatibility: model is always separate
     args = parser.parse_args()
     for name in ("output_dir", "cache_dir", "lock_file"):
         setattr(args, name, getattr(args, name).resolve())

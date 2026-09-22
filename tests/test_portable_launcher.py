@@ -152,6 +152,14 @@ def test_valid_unicode_model_in_a_folder_with_spaces(tmp_path):
     assert launcher.model_path(root) == model.resolve()
 
 
+def test_missing_model_explains_first_download_and_reusing_previous_models(tmp_path):
+    root = portable_folder(tmp_path)
+    with pytest.raises(ValueError, match="Download_model.bat") as error:
+        launcher.model_path(root)
+    assert "Choose_model.bat" in str(error.value)
+    assert "搬移" in str(error.value)
+
+
 @pytest.mark.parametrize("name", ["../outside.gguf", "/outside.gguf", "model.txt", "", None, 42])
 def test_model_configuration_cannot_select_outside_models_or_non_gguf_files(tmp_path, name):
     root = portable_folder(tmp_path)

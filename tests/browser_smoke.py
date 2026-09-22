@@ -46,7 +46,7 @@ def main():
                 page = browser.new_page(viewport={'width':1440,'height':1100},locale='zh-TW',accept_downloads=True)
                 errors=[]
                 page.on('pageerror',lambda e:errors.append(str(e)))
-                page.goto(base)
+                page.goto(base + '/classic')
                 expect(page.locator('#welcome')).to_be_visible()
                 page.locator('#welcome-demo').click()
                 expect(page.locator('#result-rows tr[data-result]')).to_have_count(10,timeout=15000)

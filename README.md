@@ -1,66 +1,87 @@
-# LocalAIforSPECheck｜本機產品規格比對與人工覆核
+# LocalAIforSPECheck｜本機標準文件庫、規格比對與風險覆核
 
-把一份產品規格，與多份技術規範逐段比對；查看各規範的文件符合度、差異、產品原文證據，並記錄同仁的覆核結果。文件與運算資料留在本機。Windows Portable 版內附 Python、模型服務及入門模型，解壓縮後即可使用；原始碼版也可連接 LM Studio 或相容本機服務。
+**v0.3.0：標準文件匯入一次，可供不同產品重複使用。** 同仁上傳一份產品規格，確認抽取項目與產品用途後，系統對所選文件庫的每份標準做相關性與適用性初篩，再逐項比對人工保留的標準，整理差異、風險覆核優先度及待補證據。全程在本機執行，保留原文、人工修改、篩選理由與輸出歷史。
 
-適合用於規格初篩、供應商文件比較、設計差異清單與覆核交接。**AI 的輸出是待確認的比對建議，不能取代工程師簽核，也不保證找出所有原子條件的差異。**
+本版將「相關性」「適用性」「符合狀態」「風險覆核優先度」分開呈現。**風險提示是待覆核建議；文件缺少證據不等於產品實際失效，完成處理也不等於完成認證。**
 
-![多份規範的比較、差異與覆核介面](docs/screenshots/comparison.png)
+## Windows：程式與模型分開下載
 
-[人工覆核畫面](docs/screenshots/review.png) · [合成示範 HTML 報告（下載後以瀏覽器開啟）](examples/demo_report.html) · [開發驗證紀錄](docs/TEST_REPORT.md)
+| 下載項目 | 何時需要 | 連結 |
+|---|---|---|
+| Windows x64 Portable 程式 ZIP | 第一次使用及更新程式 | [下載 ZIP](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases/latest/download/LocalAIforSPECheck-Windows-x64.zip) |
+| Qwen3.5-2B Q6_K 模型，約 1.56 GB | 第一次使用；之後保留並沿用 | [模型獨立下載頁與檢查碼](models/README.md) |
+| 發佈資訊與 ZIP 檢查碼 | 核對版本及成品驗證 | [GitHub Releases](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases) |
 
-## Windows：下載完整免安裝版
+**v0.3 起 ZIP 不再含 GGUF 模型。** ZIP 仍包含 Python、全部執行套件、CPU 模型服務與必要 DLL；使用者不需要安裝 Python、LM Studio 或 Bionic。請下載名為 `LocalAIforSPECheck-Windows-x64.zip` 的 Release 附件；`Source code (zip)` 不是可直接執行的套件。
 
-[**下載 Windows x64 Portable 完整 ZIP**](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases/latest/download/LocalAIforSPECheck-Windows-x64.zip) · [版本、檢查碼與發佈內容](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases) · [完整操作步驟與排錯](docs/WINDOWS_PORTABLE.md)
+1. 將程式 ZIP **全部解壓縮**到自己可寫入的 Windows 10／11 x64 本機資料夾。
+2. 第一次雙擊 **`Download_model.bat`** 下載固定模型並核對檢查碼；或依 [模型下載頁](models/README.md) 手動下載，把完整 `.gguf` 放進 `models`。已有舊版模型可直接複製沿用，不必重抓。
+3. 雙擊 **`Start.bat`**，等待模型載入與瀏覽器開啟；保留啟動視窗。
+4. 先用少量短文件完成下方流程，再建立大型文件庫。
+5. 日後只需 `Start.bat`；完成後使用 **`Stop.bat`**。程式與模型都準備好後，分析、覆核及匯出可離線執行。
 
-請下載 Release 中的 **`LocalAIforSPECheck-Windows-x64.zip`**，不要下載 GitHub 的 `Source code (zip)` 或綠色 Code 按鈕中的 ZIP。原始碼 ZIP 不含執行環境或模型。
+若工具電腦不能連網，可在允許下載的電腦取得 ZIP 與 GGUF，依公司允許的方式搬入。完整步驟、更新及排錯見 [Windows 操作指南](docs/WINDOWS_PORTABLE.md)。
 
-1. 在 Windows 10／11 **64 位元 x64** 電腦，將 ZIP「全部解壓縮」到自己可寫入的資料夾，例如「文件」中的 `規格比對工具`。不要直接在 ZIP 裡雙擊執行。
-2. 進入解壓後的資料夾，雙擊 **`Start.bat`**。等待內附模型載入，瀏覽器會自動開啟；啟動視窗請保持開啟。
-3. 第一次先使用介面的範例示範，熟悉操作。接著建立自己的專案，上傳一份產品文件與一份以上規範，逐份預覽並確認原文。
-4. 按「開始本機模型比對」，在第三步驟的執行現況查看目前規範、產品文字視窗、模型請求與最近事件；已完成結果可逐筆確認或修正，留下姓名與說明。
-5. 在「匯出與追溯」下載 HTML／Excel／JSON。完成後先停止或等待比對結束，再雙擊 **`Stop.bat`**。
+## 每次分析的流程
 
-**完整 ZIP 內附 Qwen3.5-2B Q6_K、CPU 模型服務、Python 與所需套件，不需要安裝 Python、LM Studio、Bionic 或顯示卡驅動，啟動及比對時不需要網路。** 初次下載 ZIP 需要網路。內附 2B 模型供操作驗證與初篩；複雜技術條款建議改用較大模型並依實際文件驗收，全部結論仍需人工覆核。模型選擇見 [MODELS.md](docs/MODELS.md)。
+| 步驟 | 同仁操作 | 系統產出 |
+|---|---|---|
+| 1. 建立標準文件庫 | 批次匯入標準、抽取、核對來源與獨立要求；補上版本／範圍等資料並確認 | 可重用的標準與項目；未成功抽取的原文保留提示 |
+| 2. 準備一份產品 | 上傳產品規格，抽取並確認獨立規格；可修改、拆分項目 | 數值、單位、運算條件、例外、測試方法及原文位置 |
+| 3. 全庫初篩 | 填用途、環境、市場等資訊；啟動分析並檢查所有標準的建議 | 逐份列出相關性、適用性、理由及不確定處 |
+| 4. 確認範圍並比對 | 所有標準預設保留；人工排除須記錄理由，再開始項目比對 | 逐項判定、產品引文、差異、檢索覆蓋及風險優先度 |
+| 5. 覆核與匯出 | 先看高優先度與待補證據，逐筆確認／改判／重新開啟 | HTML／Excel／JSON；保留來源快照、篩選與覆核歷史 |
 
-可攜版不安裝 Windows 服務，不修改系統 PATH 或登錄設定，也不需要管理員權限。若公司政策禁止執行外來 EXE，仍須由 IT 核准；本工具不繞過端點管制。
+標準庫可容納多份文件並以分頁使用；**數百份文件的流程驗證不代表數百份真實標準的判斷品質已驗收**。第一次建立文件庫仍需時間抽取與人工確認；之後新產品沿用已確認項目。既有分析使用建立當時的快照，不會因文件庫後續修改而偷偷改變。
 
-macOS／Linux 或需要自行管理模型服務者，使用下方原始碼安裝方式。
+### 兩種比對模式
 
-## 功能範圍
+| 模式 | 行為 | 使用時須注意 |
+|---|---|---|
+| 聚焦比對 `focused` | 先選候選產品原文；高／未知關鍵性或待處理要求掃全文，查無證據會擴大查核 | 可能降低請求量；局部查核不宣告完整符合，保留實際覆蓋與疑義 |
+| 全量比對 `exhaustive` | 對保留的標準項目掃描全部產品文字分段 | 較慢；適合提高文字覆蓋及抽核聚焦結果，仍不是語意零漏判保證 |
 
-| 功能 | 行為 |
-|---|---|
-| 文件輸入 | 有文字層的 PDF、DOCX、XLSX、CSV、TXT／Markdown；保留原始文件與擷取位置 |
-| 解析確認 | 顯示文字區塊與解析提醒；使用者確認後才能開始正式比對 |
-| 多規範排序 | 每份規範顯示「文件符合度參考分數」、各類狀態及覆核進度 |
-| 全文比對 | 每個規範文字區塊會檢查全部產品文字視窗，不只取檢索前幾筆 |
-| 差異明細 | 原要求、狀態、差異清單、說明、原文引述、文件位置、模型自評信心（非經校準準確率）及警告 |
-| 人工覆核 | 確認、更正、重新開啟；保留覆核者、自填意見、時間、版本與歷次事件 |
-| 執行現況 | 顯示處理階段、目前規範／區塊／產品視窗、模型請求、經過時間、最近回覆、連線更新與事件；停止等待及連線中斷有明確提示 |
-| 進度保留 | 已完成列持久化；取消／中斷後可續跑；新比對另建一份結果 |
-| 匯出 | HTML 可讀報告、XLSX 工作簿、JSON 完整紀錄；包含尚未覆核項目，保留歷次輸出及 SHA-256 |
-| 本機資料 | SQLite＋原始文件；不使用 CDN、遙測或雲端模型 API |
+初篩使用每份標準及產品的代表性摘錄，並非已逐條比對全文；檢索分數也不是適用機率。兩種模式均先處理分析範圍中的每份標準；模型不會自動把「未知」或低相關性文件從分析中消失。排除文件、未確認資訊、未完成比對及證據覆蓋會列在報告。
 
-功能與格式的精確限制見 [操作指南](docs/USER_GUIDE.md)；模型與 LM Studio／Bionic 設定見 [模型選擇與部署](docs/MODELS.md)。
+## 產出如何解讀
 
-**第三步驟停在 0% 時，先看執行現況。** 完成百分比只計算已儲存的規範區塊；第一個區塊可能仍在逐一掃描產品文字視窗。等待模型回覆時會顯示請求經過時間，狀態連線中斷則會提醒。計時增加或本機程式仍可回傳狀態，都不能單獨證明模型正在運算。詳見 [進度判讀與長時間等待處理](docs/USER_GUIDE.md#5-啟動比對並查看進度)。
+| 輸出 | 回答的問題 | 不能替代的判斷 |
+|---|---|---|
+| 相關標準 | 主題或要求是否可能與產品有關？ | 相關不代表一定適用 |
+| 適用性 | 用途、範圍與條件是否支持採用這份標準？ | 仍須核對正式版本及工程／合規判斷 |
+| 逐項符合狀態 | 產品文字支持符合、部分符合、不符合、缺證據或待確認？ | 文字證據不等於實體測試 |
+| 風險覆核優先度 | 哪些差異或關鍵證據缺口值得先看？ | 不是失效機率、正式 FMEA／RPN 或認證結論 |
+| 未對應產品項目 | 哪些產品規格尚未建立對應？ | 不代表所有標準都沒有這項要求 |
 
-## 進階：原始碼安裝與既有模型服務
+「缺少資料」「模型輸出不可靠」「檢索未涵蓋全文」應保留為待確認或證據缺口。原文引述驗證只確認文字存在；是否引用了正確型號、條件及測試方法仍需人工確認。
 
-需要 Python **3.11 以上**、可用瀏覽器、足夠磁碟空間，以及能執行所選模型的電腦。模型主機必須在同一部電腦；此版本只接受 loopback API 位址。
+## 介面示例
 
-此方式不適用於「解壓即可使用」的需求；Windows 一般同仁請使用上方 Portable 版。開發者可從 GitHub 下載原始碼並完整解壓縮，或使用 Git：
+以下使用合成文件與受控測試回覆，展示結果與人工覆核流程，不是公司文件或模型準確率成績。
+
+![新版風險與覆核介面（合成資料）](docs/screenshots/workspace-risks.png)
+
+[查看逐項原文與人工覆核畫面](docs/screenshots/workspace-review.png)
+
+## 舊版資料與更新
+
+新入口 `/` 使用文件庫與項目流程；**`/classic` 保留 v0.2 的專案、逐區塊比對與歷次覆核**。在「標準文件庫」按 **「匯入舊版專案文件」**，選擇舊專案，即可沿用已保存的產品與標準原檔，不必逐份重新上傳。新匯入文件需完成獨立項目抽取與確認；相同內容及文件角色已在新版庫時會直接重用。舊資料不會被自動當成已確認的獨立規格項目。舊版的文件符合度分數仍只屬於舊流程，不能當作新流程的相關性或風險排序。
+
+先 `Stop.bat`，備份舊版，再把新 ZIP 解壓到新資料夾；將舊版完整 **`data` 與 `models`** 複製過去。模型不隨新版 ZIP 重複下載。詳見 [更新、備份與搬移](docs/WINDOWS_PORTABLE.md#更新備份與搬移)。
+
+## 原始碼與既有模型服務
+
+開發者需要 Python 3.11+。Windows 一般同仁使用 Portable 即可，不必執行下列指令。
 
 ```bash
 git clone https://github.com/pcpcchen-coder/LocalAIforSPECheck.git
 cd LocalAIforSPECheck
+python -m venv .venv
 ```
 
-Windows（命令提示字元）：
+Windows：
 
 ```bat
-py -3 -m venv .venv
-.venv\Scripts\python.exe -m pip install --upgrade pip
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe launcher.py
 ```
@@ -68,98 +89,37 @@ py -3 -m venv .venv
 macOS／Linux：
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
-chmod +x start_macos.command start_linux.sh
 .venv/bin/python launcher.py
 ```
 
-若系統有多個 Python，先以 `python --version` 或 `python3 --version` 確認實際版本。macOS 的系統 Python 不一定符合要求。首次下載 Python 套件、模型需要網路；完成安裝且模型已下載後，本機比對不需要對外連線。公司設備不能安裝軟體時，可使用已內附環境與模型的 Windows Portable ZIP；仍須符合公司對可執行檔的使用政策。
+在模型設定填入同機 OpenAI 相容 API，例如 LM Studio 的 `http://127.0.0.1:1234/v1`，以實際端口及 `/models` 回傳的模型 ID 為準。Bionic 是否提供可供本工具使用的 API，需在該版本環境確認。模型選擇、JSON 格式需求與測試方法見 [MODELS.md](docs/MODELS.md)。
 
-LM Studio 預設連線欄位為 `http://127.0.0.1:1234/v1`；請依實際 Server 畫面核對。**Bionic 不預設端口**，必須使用該工具實際顯示且支援 OpenAI 相容介面的 loopback URL。模型 ID 必須與 `/v1/models` 回傳一致。請先測試連線，再存設定並執行。
+服務只綁定 `127.0.0.1` 且使用單一 worker；不支援以此版本直接架設多人共用網站。工作資料預設在 `data`，可設定 `SPEC_CHECK_DATA`。備份須包含整個資料目錄；JSON 報告沒有一鍵匯回續作功能。
 
-### 手動啟動與特殊端口
+## 限制與驗收
 
-在已啟用虛擬環境的終端機執行：
-
-```bash
-python launcher.py
-python launcher.py --no-browser
-python launcher.py --port 8766
-```
-
-也可由 IT 直接執行：
-
-```bash
-python -m uvicorn spec_check.app:app --host 127.0.0.1 --port 8765 --workers 1
-```
-
-請維持 `127.0.0.1` 與單一 worker；不要使用 `--reload`，也不要把此版本公開到區域網路或網際網路。
-
-## 分數與狀態怎麼解讀
-
-| 狀態 | 含義 |
-|---|---|
-| 符合 `match` | AI 依產品文字與有效引述判定符合；仍需人工確認 |
-| 部分符合 `partial` | 部分條件符合，仍有差異或限制 |
-| 不符合 `mismatch` | 產品文件有可引述的內容，與要求存在衝突 |
-| 文件未載明 `missing` | 所有產品視窗均已檢查，仍找不到支援資訊；不代表實際產品必定不合規 |
-| 待確認 `uncertain` | 證據不足、輸出無法驗證、連線失敗或其他無法可靠判定情況 |
-
-文件符合度參考分數：`100 ×（符合數＋0.5 × 部分符合數）／規範文字區塊總數`。所有狀態均計入分母；確認／更正後採人工最終狀態計分。它是可解釋的工作排序指標，**不是認證結論，也不是向量語意相似度**。不同規範的篇幅、切段方式、條件數與重要程度會影響分數，不能僅憑最高分選定標準。未完成或中斷的比對，只能視為暫時結果。
-
-## 已知限制
-
-- **沒有內建 OCR。** 掃描 PDF、截圖、圖片表格、DOCX 圖片及 XLSX 圖片，應先由核准工具轉成文字並人工校核。讀不到文字時不能當成沒有要求。
-- 文件中圖面、公差圖、跨頁表格、頁首頁尾、合併儲存格、註脚與公式可能失去原本關係；擷取預覽是必要步驟。
-- 一個區塊可能含多個要求。完整處理所有區塊不等於保證每個原子條件都判對；重要規範應再人工逐條拆解及抽核。
-- 本工具會驗證引述文字是否存在於產品文件；「引述存在」並不證明模型推理正確。單位換算、條件例外、測試方法與跨段引用仍可能判錯。
-- 覆核者姓名是自填，沒有帳號驗證或數位簽章；事件歷史用於追溯，不是不可竄改的稽核憑證。
-- 大文件採逐區塊、逐產品視窗循序呼叫，耗時可能很長。此版本無多人伺服器權限與排程叢集。
-- 合成示範與自動測試只能驗證系統流程；**沒有以你的真實文件及本地模型完成驗收前，不能聲稱比對精準度或差異召回率。**
-
-## 執行現況畫面
-
-以下為合成文件與延遲模型回覆的操作驗證：第一條尚未完成時，仍可看到正在等待哪一段、已等待多久，以及狀態連線是否正常。
-
-![第三步的執行現況](docs/screenshots/execution-progress.png)
-
-## 備份、還原與更新
-
-**Portable 版：先雙擊 `Stop.bat` 並等待停止，再完整複製整個解壓資料夾**，保留模型、設定、工作資料及日誌。更新時解壓到另一個新資料夾，保留舊版備份，再依 [Portable 更新步驟](docs/WINDOWS_PORTABLE.md#更新備份與搬移) 處理。不要直接將新 ZIP 覆蓋正在使用的資料夾。
-
-原始碼版預設工作資料在專案的 `data/`。可由環境變數 `SPEC_CHECK_DATA` 指向其他本機資料夾，供 IT 管理。原始規格、擷取文字、比對結果、設定與覆核歷史均應視為敏感資料。
-
-1. 等待本次比對結束，或按取消並等待狀態更新。
-2. 在啟動視窗按 `Ctrl+C` 停止程式。
-3. **備份整個 `data/`（或指定的資料目錄），包括 SQLite、uploads 與 reports。** 不要在比對中只複製單一資料庫檔。
-4. 還原時保持程式關閉，將整個備份還原到原資料目錄後啟動。
-5. 更新程式前先備份。不要把含規格資料的資料夾、匯出報告、模型金鑰或備份提交到 GitHub。
-
-HTML／XLSX 是交接報告；JSON 保留較完整的結果快照，但本版沒有 JSON 一鍵匯回功能。完整續作仍以整個工作資料夾備份為準。
-
-## 開發、測試與驗收
-
-在虛擬環境中：
+- 支援有文字層的 PDF、DOCX、XLSX、CSV、TXT、Markdown，單檔上限 30 MB；沒有內建 OCR。
+- 圖片、跨頁表格、公式及註脚可能未完整擷取；須先核對來源，再確認項目。抽取完成不是原子條件完整性的證明。
+- 入門 2B 模型適合測試操作與初篩；複雜條件應用代表性人工答案評估模型，不以參數量或成功 JSON 回覆代替驗收。
+- 風險優先度採可檢查的提示規則與模型／人工標註，沒有工業失效資料校準；關鍵性未知不能解讀為低風險。
+- 覆核姓名為自填；歷史與檢查碼便於追溯，並非數位簽章或不可竄改憑證。
+- 初篩與比對循序載入標準；完整匯出仍一次彙整全部快照，數百份長標準的記憶體與輸出大小需在目標電腦實測。
+- 本版不宣稱已在公司真實標準庫達成準確率、召回率或固定完成時間；實際證據見 [測試報告](docs/TEST_REPORT.md)。
 
 ```bash
 python -m pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-自動測試可在沒有本地模型的環境執行；本地模型、真實文件及一般同仁的實際操作，另依 [驗收清單](docs/ACCEPTANCE.md) 完成。合成文件位於 [examples](examples/)，不可作為工程標準或產品資料引用。
-
 | 文件 | 用途 |
 |---|---|
-| [WINDOWS_PORTABLE.md](docs/WINDOWS_PORTABLE.md) | Windows 完整 ZIP、免安裝啟動、模型更換、備份與排錯 |
-| [PORTABLE_COMPONENTS.md](docs/PORTABLE_COMPONENTS.md) | 可攜版組件來源、固定版本、授權與下載驗證 |
-| [BUILD_PORTABLE.md](docs/BUILD_PORTABLE.md) | 維護人員的重建、版本鎖定、成品測試與自動發佈 |
-| [TEST_REPORT.md](docs/TEST_REPORT.md) | 已執行的驗證與現場驗收界線 |
-| [USER_GUIDE.md](docs/USER_GUIDE.md) | 一般同仁的完整操作、覆核及排錯 |
-| [MODELS.md](docs/MODELS.md) | 模型推薦、硬體取捨、LM Studio／Bionic 設定 |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架構、資料流、API、計分與延續處理 |
-| [ACCEPTANCE.md](docs/ACCEPTANCE.md) | 可執行驗收、真實模型評估及剩餘風險 |
-| [EVALUATION.md](docs/EVALUATION.md) | 人工標準答案格式及 `scripts/evaluate_gold.py` 評估工具 |
-| [SECURITY.md](docs/SECURITY.md) | 本機邊界、機密資料、覆核身份與備份 |
-| [CONTRACT.md](CONTRACT.md) | 開發者使用的資料格式及模組介面 |
+| [同仁操作指南](docs/USER_GUIDE.md) | 建庫、抽取確認、篩選、比對、覆核與輸出 |
+| [Windows Portable](docs/WINDOWS_PORTABLE.md) | 下載、離線啟用、沿用模型與排錯 |
+| [模型下載頁](models/README.md) | 固定 GGUF 連結、大小、SHA-256 |
+| [模型與連線設定](docs/MODELS.md) | LM Studio／Bionic 及模型選型限制 |
+| [架構](docs/ARCHITECTURE.md) · [v0.3 API](docs/API_V03.md) | 模組、資料流、接口與相容性 |
+| [驗收清單](docs/ACCEPTANCE.md) · [評估方法](docs/EVALUATION.md) | 真實資料與人工答案的驗收方法 |
+| [測試報告](docs/TEST_REPORT.md) | 實際已執行的檢查與限制 |
+| [封裝重建](docs/BUILD_PORTABLE.md) · [元件來源](docs/PORTABLE_COMPONENTS.md) | 固定版本、授權及成品驗證 |
+| [安全與資料](docs/SECURITY.md) | 單機邊界、機密資料及備份 |
