@@ -399,7 +399,9 @@ def _standard_context(context, item, budget):
     near = blocks[max(0, index - 1):index + 2] if index is not None else []
     scope = [b for b in blocks if re.search(r"範圍|范围|適用|适用|scope|definition|定義|定义", b.get("text", "")[:100], re.I)]
     result = []
-    candidates = engine._unique(near + scope)
+    reference_ids = {ref.get('block_id') for ref in item.get('context_evidence', []) if isinstance(ref, dict)}
+    referenced = [b for b in blocks if b.get('id') in reference_ids]
+    candidates = engine._unique(referenced + near + scope)
     for b in candidates:
         if budget <= 0:
             break

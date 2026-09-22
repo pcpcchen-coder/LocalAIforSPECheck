@@ -126,3 +126,9 @@ flowchart TD
 不要增加 Uvicorn workers 或使用 `--reload`；目前排程與取消控制以單程序工作站為邊界。多人共用需另設登入、權限、跨程序佇列、模型排程及正式稽核，不能只把 host 改成 `0.0.0.0`。
 
 舊流程與 v0.3 的評估單位不同：舊版是一個文字區塊一列，新版是抽取並可人工拆分的獨立項目。不得直接把兩者的數量與符合率當作等價品質指標。
+
+## 手動外部萃取交換
+
+`external_extraction.py` 管理 standard-only 萃取包、固定 Prompt、JSON schema、批次預覽、保存與套用；不呼叫雲端服務。`v2_external_package` 保存來源雜湊、Prompt 雜湊、文件基準版本及批次 manifest；`v2_external_batch` 暫存每批驗證後項目及內容雜湊。未收齊時不改文件 index；收齊後以同一交易建立新 `v2_item` index、更新文件與新增 audit。文件版本或原文改變即禁止舊包套用，套用清除舊 job_id，避免恢復舊抽取工作覆蓋新版。
+
+`context_evidence` 保存同文件跨章引文；本機比對優先讀取這些來源區塊，仍遵守上下文預算與保守判定。來源快照、JSON 報告與抽取歷程保留 external_source、操作者填報模型及雜湊。這些識別碼綁定原資料庫，不是任意文件之間的模糊對應。

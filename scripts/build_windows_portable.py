@@ -224,7 +224,7 @@ def copy_application(repository: Path, bundle: Path) -> None:
             raise ValueError(f"Symlink is not allowed in application sources: {source}")
         if not source.is_file():
             continue
-        if source.suffix == ".py" or (relative.parts[0] == "static" and source.suffix in {".html", ".css", ".js", ".svg", ".png", ".ico"}):
+        if source.suffix == ".py" or (relative.parts[0] == "prompts" and source.suffix == ".md") or (relative.parts[0] == "static" and source.suffix in {".html", ".css", ".js", ".svg", ".png", ".ico"}):
             copy_file(source, bundle / "app" / "spec_check" / relative)
     copy_file(repository / "portable" / "launcher.py", bundle / "app" / "portable_launcher.py")
     copy_file(repository / "portable" / "download_model.py", bundle / "app" / "download_model.py")
@@ -233,6 +233,9 @@ def copy_application(repository: Path, bundle: Path) -> None:
         copy_file(repository / "portable" / name, bundle / name)
     for name in ("product_48v_controller.txt", "standard_a_48v.txt", "standard_b_400v.txt", "gold_template.json", "demo_report.html"):
         copy_file(repository / "examples" / name, bundle / "app" / "examples" / name)
+    for source in sorted((repository / "examples" / "external-extraction").glob("*")):
+        if source.is_file() and source.suffix in {".json", ".md"}:
+            copy_file(source, bundle / "examples" / "external-extraction" / source.name)
     copy_file(repository / "README.md", bundle / "README.md")
     for source in sorted((repository / "docs").glob("*.md")):
         copy_file(source, bundle / "docs" / source.name)

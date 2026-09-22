@@ -43,6 +43,10 @@ Get-FileHash .\LocalAIforSPECheck-Windows-x64.zip -Algorithm SHA256
 
 若公司也禁止執行外來 EXE，仍須取得既有端點政策允許；免安裝不會繞過 AppLocker、WDAC 或防毒管制。不需要管理員權限，也不修改系統 PATH、登錄或安裝 Windows 服務。
 
+## 使用 ChatGPT 萃取標準
+
+v0.3.1 起，可在標準文件的「查看／確認」中使用「外部模型萃取（ChatGPT）」。包內包含完整 Prompt、原文及批次 input，回傳 JSON 經原文核對後分批保存，收齊再套用。操作見 [外部萃取指南](EXTERNAL_EXTRACTION.md)。Portable 內已附所需功能，不必安裝額外套件；模型仍分開下載。
+
 ## 每天如何操作
 
 1. `Start.bat` → 等待瀏覽器開啟。若沒有自動開啟，使用啟動視窗顯示的 `http://127.0.0.1:...` 網址。

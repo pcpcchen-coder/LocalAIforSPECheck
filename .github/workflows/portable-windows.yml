@@ -99,6 +99,10 @@ jobs:
 
           [獨立模型直連、校驗碼與手動下載說明](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/models/README.md)。既有 v0.2 使用者可搬移舊版模型，不必重新下載。
 
+          v0.3.1 新增手動 ChatGPT 規範萃取：標準文件可下載含完整 Prompt 的萃取包，回傳 JSON 經逐字原文核對後分批保存，收齊後套用並人工確認。產品抽取與比對仍使用本機模型。
+
+          [外部萃取操作指南](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/docs/EXTERNAL_EXTRACTION.md) · [完整 Prompt](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/spec_check/prompts/CHATGPT_STANDARD_EXTRACTION_PROMPT.md)
+
           v0.3 加入可重用標準文件庫、獨立規格抽取與人工確認、全庫相關性及適用性初篩、候選／全量項目比對，以及風險、待補證據、未對應產品項目與覆核匯出。所有標準預設保留，只有人工記錄理由後才會排除；相關性、文件差異與風險優先度分開呈現。
 
           執行現況區塊提供目前規範、條目、產品分段、請求等待時間、最近模型回覆、程式連線狀態與事件紀錄。完成百分比只計算已儲存條目；等待模型回覆時不會虛構 token 或推論百分比。

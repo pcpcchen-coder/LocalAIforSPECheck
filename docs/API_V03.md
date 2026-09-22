@@ -54,3 +54,23 @@ progress 包含 stage、started_at、updated_at、request_started_at、last_resp
 documents 包含不可變原文 blocks、抽取 items 與 extraction_audit。results 保留舊版欄位及 `item,risk,ai_risk,retrieval,matched_product_item_ids`。
 `execution_jobs` 保存各階段模型設定、可用的模型 SHA256 與續跑紀錄。`coverage.selected_scope_complete` 表示所選要求已完成全部產品來源掃描；`coverage.coverage_complete` 還要求沒有排除任何本次初篩標準。兩者都不代表模型判斷正確或語意差異零遺漏。`unresolved_items` 保留未可靠拆解的項目數。
 人工風險覆核保存在 review.risk_level 與 history。相關性、符合狀態及風險優先度分開呈現。
+
+## 外部規範萃取（v0.3.1）
+
+僅 `role=standard` 開放，產品請求遭拒；不呼叫本機或外部模型。
+路徑基底 `D=/api/v2/documents/{id}/external`。
+
+| 方法 | 路徑 | 輸入／結果 |
+|---|---|---|
+| GET | D | `{items:[package summary]}`，此清單不分頁；含 received_count、batch_count、missing_batches、stale、version |
+| POST | D | `{expected_version:文件版本,reviewer,acknowledge_public:true,blocks_per_batch:4}`；每批 1–8 區塊，回傳 package summary |
+| GET | D/{package_id}/download | ZIP：Prompt、schema、source、全部 batch input；檔名由系統生成 |
+| POST | D/{package_id}/preview | multipart 多個 `files` + JSON 文字 `values`，回傳預覽、preview_sha256；不保存批次或更改 index |
+| POST | D/{package_id}/import | 同上，values 加 preview_sha256；重新驗證並原子保存本輪所有批次及 audit |
+| POST | D/{package_id}/activate | `{expected_version:包版本,reviewer,note,acknowledge_warnings:true}`；必須全部收齊，建立新 index 並清除 confirmed |
+
+preview/import 的 values：`{expected_version:包版本,reviewer,note,model_label}`。同次 1–50 個檔案、合計上限 16 MB；model_label 為使用者填報，不保證是實際模型身分。改檔案、填寫資料或版本須重新預覽。相同內容與模型標籤沿用；修正暫存批次會保存替換前雜湊與操作歷程。
+
+輸出格式由包內 `result.schema.json` 定義：format=`local-specheck-extraction-result`、schema_version=1，必須照抄 package_id/document_id/source_sha256/batch_id，blocks 恰含本批全部 id。每 block 有 items，每 item 為既有文字欄位（block_id 在外層）與 `context_evidence:[{block_id,quote}]`。主要引文與上下文引文須逐字存在於同一文件；context 中的疑似要求保守降為 unresolved，未涵蓋原文補 unresolved。
+
+文件版本改變或正在本地抽取、包已套用、來源雜湊不同皆拒絕套用。套用為單一資料庫交易；舊 index 及已建立分析快照不變。保存的是正規化項目及原始檔內容雜湊，不保存 ChatGPT 對話或原上傳 bytes。詳細操作與 Prompt 見 [EXTERNAL_EXTRACTION.md](EXTERNAL_EXTRACTION.md)。

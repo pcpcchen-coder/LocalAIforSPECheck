@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "package_id": {
+      "type": "string"
+    },
+    "document_id": {
+      "type": "string"
+    },
+    "source_sha256": {
+      "type": "string"
+    },
+    "batch_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "format": {
+      "const": "local-specheck-extraction-result"
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "block_id": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "properties": {
+                "conditions": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "criticality": {
+                  "type": "string",
+                  "maxLength": 20000,
+                  "enum": [
+                    "high",
+                    "medium",
+                    "low",
+                    "unknown"
+                  ]
+                },
+                "criticality_basis": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "exceptions": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "kind": {
+                  "type": "string",
+                  "maxLength": 20000,
+                  "enum": [
+                    "requirement",
+                    "context",
+                    "unresolved"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "operator": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "parameter": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "quote": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "test_method": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "unit": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "value": {
+                  "type": "string",
+                  "maxLength": 20000
+                },
+                "context_evidence": {
+                  "type": "array",
+                  "maxItems": 20,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "block_id": {
+                        "type": "string"
+                      },
+                      "quote": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "block_id",
+                      "quote"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "conditions",
+                "criticality",
+                "criticality_basis",
+                "exceptions",
+                "kind",
+                "name",
+                "operator",
+                "parameter",
+                "quote",
+                "test_method",
+                "unit",
+                "value",
+                "context_evidence"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "block_id",
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "package_id",
+    "document_id",
+    "source_sha256",
+    "batch_id",
+    "schema_version",
+    "format",
+    "blocks"
+  ],
+  "additionalProperties": false
+}

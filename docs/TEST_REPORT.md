@@ -1,5 +1,21 @@
 # 開發驗證紀錄
 
+## 0.3.1 手動 ChatGPT 規範萃取
+
+日期：2026-09-22。新增外部萃取包、完整 Prompt、固定 schema、逐字引文核對、分批暫存及收齊後套用。
+
+| 驗證 | 結果 |
+|---|---|
+| Linux Python 3.12 完整測試 | 247 項通過、48 個子案例通過；1 項 Windows Job Object 測試依平台略過 |
+| 外部交換 API | 22 項：包內僅含標準、產品拒絕匯出、Prompt／schema 一致、預覽不改資料、分批保存、完整批次要求、重複沿用、原文及上下文引文核對、未涵蓋文字保留、JSON 截斷／重複欄位拒絕、版本衝突及資料庫重新開啟保存 |
+| 接回既有比對與報告 | 外部項目套用後重新人工確認，再初篩、比對及匯出；報告保留外部來源，舊分析快照不变；再用本機重新抽取會清除過時外部身分 |
+| 真實 Chromium | 下載 ZIP、分次匯入、重新載入續作、修改資料使預覽失效、拒絕偽造引文、收齊套用、人工確認與歷程均通過；390px 外部萃取視窗無水平溢出、無 page error |
+| Portable 封裝 | Prompt 納入明確檔案清單；Windows 成品測試新增實際 ZIP 內的外部包下載、JSON 預覽／保存／套用與重啟保存檢查。實際發行驗證以該版 Release 的 portable-smoke-report.json 為準 |
+
+瀏覽器使用合成 JSON 模擬 ChatGPT 交付，不代表已呼叫 ChatGPT 或驗收真實規範的萃取準確率。沒有把產品或公司文件送到外部服務。[操作指南](EXTERNAL_EXTRACTION.md) 含完整流程、批次續作與修正命令；[完整 Prompt](CHATGPT_STANDARD_EXTRACTION_PROMPT.md) 與執行包使用相同內容。
+
+重跑：`python -m pytest tests/test_external_extraction.py tests/test_workflows.py -q`；瀏覽器：`python tests/external_browser_smoke.py`（需開發用 Playwright，與使用者 Portable 無關）。
+
 ## 0.3.0 標準文件庫與風險覆核
 
 日期：2026-09-22。新版 API 測試使用合成文件與模型函式替身，瀏覽器測試則使用真實後端及可控制回覆的本地 HTTP 模型服務。這些測試驗證軟體流程與資料完整性，不代表真實模型對公司規格的準確率。

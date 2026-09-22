@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "format": "local-specheck-extraction-source",
+  "package_id": "SYNTHETIC-EXAMPLE-NOT-IMPORTABLE",
+  "document_id": "SYNTHETIC-STANDARD",
+  "source_sha256": "ce77d5c7c512317d47c95a1d0f28ab294f422fe38d07c5e4c81782a1f8f29a17",
+  "name": "合成標準.txt",
+  "metadata": {},
+  "blocks": [
+    {
+      "id": "B00001",
+      "location": "文字第 1 行",
+      "text": "額定直流電壓必須為 48 V。"
+    }
+  ],
+  "warnings": []
+}

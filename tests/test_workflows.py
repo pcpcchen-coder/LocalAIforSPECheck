@@ -460,3 +460,32 @@ def test_import_classic_project_reuses_documents_and_keeps_original_history(clie
     assert {d["id"] for d in again["items"]} == {d["id"] for d in imported["items"]}
     assert ok(client.get(f"/api/projects/{project['id']}")) == before
     assert ok(client.get(PREFIX + "/library"))["total"] == ok(client.get(PREFIX + "/products"))["total"] == 1
+
+
+def test_external_standard_replacement_keeps_snapshots_and_report_provenance(client, model):
+    from test_external_extraction import create, bundle, result, stage, activate
+    product = prepare(client, 'external-product.txt', '額定電壓：48 V\n', 'product')
+    standard = prepare(client, 'external-standard.txt', '額定電壓：48 V\n')
+    before = compare(client, analyse(client, product, [standard]))
+    package = create(client, standard)
+    _, tasks = bundle(client, standard, package)
+    package = stage(client, standard, package, [result(t) for t in tasks])['package']
+    # Staging leaves the existing, confirmed index fully usable.
+    assert doc(client, standard['id'])['index_id'] == standard['index_id']
+    assert doc(client, standard['id'])['confirmed']
+    updated = ok(activate(client, standard, package))['document']
+    assert updated['index_id'] != standard['index_id'] and not updated['confirmed']
+    updated = confirm(client, updated)
+    after = compare(client, analyse(client, product, [updated]))
+    report = ok(client.get(f"{PREFIX}/analyses/{after['id']}/export?format=json"))
+    source = next(d for d in report['documents'] if d['id'] == standard['id'])
+    assert source['extraction_model']['provider'] == 'external_manual'
+    assert report['results'][0]['item']['external_source']['package_id'] == package['id']
+    old = ok(client.get(f"{PREFIX}/analyses/{before['id']}/export?format=json"))
+    original = next(d for d in old['documents'] if d['id'] == standard['id'])
+    assert original['index_id'] == standard['index_id'] and 'external_package_id' not in original
+    job = ok(client.post(f"{PREFIX}/documents/{standard['id']}/extract", json={'force': True}))
+    wait(client, f"/jobs/{job['id']}")
+    local_again = doc(client, standard['id'])
+    assert 'external_package_id' not in local_again
+    assert local_again['extraction_model'].get('provider') != 'external_manual'

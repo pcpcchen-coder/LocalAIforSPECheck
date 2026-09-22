@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "package_id": "SYNTHETIC-EXAMPLE-NOT-IMPORTABLE",
+  "document_id": "SYNTHETIC-STANDARD",
+  "source_sha256": "ce77d5c7c512317d47c95a1d0f28ab294f422fe38d07c5e4c81782a1f8f29a17",
+  "batch_id": "batch-0001",
+  "format": "local-specheck-extraction-result",
+  "blocks": [
+    {
+      "block_id": "B00001",
+      "items": [
+        {
+          "name": "額定電壓",
+          "parameter": "額定直流電壓",
+          "value": "48",
+          "unit": "V",
+          "operator": "=",
+          "conditions": "",
+          "exceptions": "",
+          "test_method": "",
+          "criticality": "medium",
+          "criticality_basis": "明確性能要求。",
+          "quote": "額定直流電壓必須為 48 V。",
+          "kind": "requirement",
+          "context_evidence": []
+        }
+      ]
+    }
+  ]
+}

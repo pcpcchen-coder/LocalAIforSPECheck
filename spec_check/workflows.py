@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Body, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 
@@ -275,6 +275,10 @@ class WorkflowService:
             if not isinstance(candidates, list) or not 1 <= len(candidates) <= 100:
                 raise ValueError('拆分必須提供 1–100 個項目。')
             new_items = [self._validate_item(candidate, doc) for candidate in candidates]
+            for candidate in new_items:
+                for key in ('context_evidence', 'external_source'):
+                    if key in item:
+                        candidate[key] = copy.deepcopy(item[key])
             if any(i['block_id'] != item['block_id'] for i in new_items):
                 raise ValueError('項目來源區塊不能移動；請在對應原文的項目中修改，保留來源對應。')
             if split and any(i['quote'] not in item['quote'] for i in new_items):
@@ -501,8 +505,11 @@ class WorkflowService:
                            version=doc['version'] + 1, indexed_at=now(), index_engine=ae.ENGINE_VERSION,
                            extraction_warnings=list(dict.fromkeys(w for b in block_records for w in b['warnings'])),
                            extraction_model=public(settings), extraction_prompt_sha256=ae.PROMPT_SHA256)
+                doc.pop('external_package_id', None)
                 if job.get('model_sha256'):
                     doc['extraction_model_sha256'] = job['model_sha256']
+                else:
+                    doc.pop('extraction_model_sha256', None)
                 self.store.put_many([('v2_document', doc, doc['role']), self.audit(doc['id'], 'items_extracted',
                                      item_count=len(items), unresolved_count=doc['unresolved_count'], index_id=target['index_id'],
                                      model=settings['model'], model_sha256=job.get('model_sha256'),
@@ -926,7 +933,54 @@ class WorkflowService:
 
 
 def install_routes(app, service):
+    from .external_extraction import ExternalExtraction, MAX_RESULT_BYTES, strict_json
     router = APIRouter(prefix='/api/v2')
+    external = ExternalExtraction(service)
+
+    @router.get('/documents/{identifier}/external')
+    def external_packages(identifier: str):
+        return external.listing(identifier)
+
+    @router.post('/documents/{identifier}/external')
+    def external_create(identifier: str, values: dict = Body(...)):
+        return external.create(identifier, values)
+
+    @router.get('/documents/{identifier}/external/{package_id}/download')
+    def external_download(identifier: str, package_id: str):
+        data = external.archive(identifier, package_id)
+        return Response(data, media_type='application/zip', headers={
+            'Content-Disposition': f'attachment; filename="standard-extraction-{package_id}.zip"'})
+
+    async def external_files(identifier, package_id, files, values, commit):
+        try:
+            data, total = [], 0
+            if not 1 <= len(files) <= 50:
+                raise ValueError('每次選擇 1–50 個結果 JSON。')
+            for file in files:
+                raw = await file.read(MAX_RESULT_BYTES + 1)
+                total += len(raw)
+                if total > MAX_RESULT_BYTES:
+                    raise ValueError('結果檔合計不可超過 16 MB，請分次匯入。')
+                data.append((file.filename or 'result.json', raw))
+            settings = strict_json(values.encode('utf-8'))
+            if not isinstance(settings, dict):
+                raise ValueError('匯入操作資料格式無效。')
+            return await run_in_threadpool(external.preview, identifier, package_id, data, settings, commit)
+        finally:
+            for file in files:
+                await file.close()
+
+    @router.post('/documents/{identifier}/external/{package_id}/preview')
+    async def external_preview(identifier: str, package_id: str, files: list[UploadFile] = File(...), values: str = Form(...)):
+        return await external_files(identifier, package_id, files, values, False)
+
+    @router.post('/documents/{identifier}/external/{package_id}/import')
+    async def external_import(identifier: str, package_id: str, files: list[UploadFile] = File(...), values: str = Form(...)):
+        return await external_files(identifier, package_id, files, values, True)
+
+    @router.post('/documents/{identifier}/external/{package_id}/activate')
+    def external_activate(identifier: str, package_id: str, values: dict = Body(...)):
+        return external.activate(identifier, package_id, values)
 
     @router.post('/import-project')
     def import_project(values: dict = Body(...)):

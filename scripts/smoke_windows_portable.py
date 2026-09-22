@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from contextlib import ExitStack
 import hashlib
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -282,6 +283,42 @@ def run_v2_smoke(base: str, process, timeout: int) -> dict:
                 comparison_requests=completed["progress"]["requests_completed"])
 
 
+
+def run_external_smoke(base: str) -> dict:
+    """Synthetic external JSON validates the packaged exchange, not ChatGPT quality."""
+    document = upload_v2(base, "standard", "external-standard.txt", "額定電壓必須為 48 V。\n")
+    prefix = f"/api/v2/documents/{document['id']}/external"
+    package = request(base, prefix, {"expected_version": document["version"], "reviewer": "CI 合成驗收",
+                                    "acknowledge_public": True, "blocks_per_batch": 1})
+    archive = request(base, prefix + f"/{package['id']}/download", raw=True)
+    with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
+        check("PROMPT.md" in zipped.namelist() and "source.json" in zipped.namelist(), "External prompt/source missing in packaged application")
+        task = json.loads(zipped.read("batch-0001.input.json"))
+    result = {**{k: task[k] for k in ("schema_version", "package_id", "document_id", "source_sha256", "batch_id")},
+              "format": "local-specheck-extraction-result", "blocks": [{"block_id": b["id"], "items": [
+                dict(name="額定電壓", parameter="額定電壓", value="48", unit="V", operator="=", conditions="",
+                     exceptions="", test_method="", criticality="medium", criticality_basis="合成性能要求。",
+                     quote=b["text"], kind="requirement", context_evidence=[])]} for b in task["blocks"]]}
+    values = {"expected_version": package["version"], "reviewer": "CI 合成驗收", "note": "合成外部 JSON 匯入驗證。",
+              "model_label": "Synthetic JSON; not a ChatGPT inference test"}
+    def upload_result(operation):
+        boundary = "specheck-external-" + uuid.uuid4().hex
+        body = (f'--{boundary}\r\nContent-Disposition: form-data; name="values"\r\n\r\n'.encode() +
+                json.dumps(values, ensure_ascii=False).encode() +
+                f'\r\n--{boundary}\r\nContent-Disposition: form-data; name="files"; filename="batch-0001.result.json"\r\nContent-Type: application/json\r\n\r\n'.encode() +
+                json.dumps(result, ensure_ascii=False).encode() + f'\r\n--{boundary}--\r\n'.encode())
+        return request(base, prefix + f"/{package['id']}/{operation}", body, content_type=f"multipart/form-data; boundary={boundary}")
+    preview = upload_result("preview")
+    values["preview_sha256"] = preview["preview_sha256"]
+    staged = upload_result("import")
+    check(staged["package"]["received_count"] == 1, "External import not staged")
+    applied = request(base, prefix + f"/{package['id']}/activate", {"expected_version": staged["package"]["version"],
+                      "reviewer": values["reviewer"], "note": values["note"], "acknowledge_warnings": True})
+    check(applied["document"]["index_status"] == "ready" and not applied["document"]["confirmed"], "External items bypassed human confirmation")
+    rows = request(base, f"/api/v2/documents/{document['id']}/items")["items"]
+    check(rows and rows[0]["external_source"]["package_id"] == package["id"], "External provenance missing")
+    return dict(document_id=document["id"], package_id=package["id"], item_count=len(rows))
+
 def verify_v2_restart(base: str, previous: dict):
     identifier = previous["analysis_id"]
     restored = request(base, f"/api/v2/analyses/{identifier}")
@@ -437,6 +474,8 @@ def run_smoke(args):
             report["v03_workflow"] = run_v2_smoke(base, process, args.workflow_phase_timeout)
             report["checks"].extend(["v03_real_model_extraction", "v03_original_span_retention", "v03_no_silent_standard_exclusion",
                                      "v03_real_model_item_comparison", "v03_risk_and_cited_evidence", "v03_json_analysis_export"])
+            report["external_extraction"] = run_external_smoke(base)
+            report["checks"].append("external_prompt_export_preview_import_activate")
             stop(root, env, process, session)
             process = session = None
             process, session, base = start(root, env, log, args.startup_timeout, batch=True)
@@ -447,6 +486,10 @@ def run_smoke(args):
             check(restored_progress["stage"] == "completed" and restored_progress["last_response_at"],
                   "Execution progress history did not survive restart")
             verify_v2_restart(base, report["v03_workflow"])
+            external = report["external_extraction"]
+            external_doc = request(base, f"/api/v2/documents/{external['document_id']}")
+            check(external_doc.get("external_package_id") == external["package_id"] and external_doc["item_count"] == external["item_count"], "External extraction lost on restart")
+            report["checks"].append("external_extraction_restart_persistence")
             report["checks"].append("v03_restart_persistence")
             stop(root, env, process, session)
             process = session = None
