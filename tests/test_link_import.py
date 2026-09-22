@@ -219,14 +219,15 @@ def test_invalid_unicode_is_rejected_before_storage(client):
     assert response.status_code==400 and ok(client.get('/api/v2/library'))['total']==0
 
 
-def test_portable_standalone_smoke_helper_uses_real_api(client,monkeypatch):
+@pytest.mark.parametrize('line_ending', [b'\n', b'\r\n'])
+def test_portable_standalone_smoke_helper_uses_real_api(client,monkeypatch,line_ending):
     from scripts import smoke_windows_portable as smoke
     def request(_base,path,payload=None,*,method=None,raw=False,content_type='application/json',**_kwargs):
         response=client.request(method or ('POST' if payload is not None else 'GET'),path,
             content=payload if isinstance(payload,bytes) else json.dumps(payload).encode() if payload is not None else None,
             headers={'Content-Type':content_type})
         assert response.status_code==200,response.text
-        return response.content if raw else response.json()
+        return response.content.replace(b'\r\n',b'\n').replace(b'\n',line_ending) if raw else response.json()
     monkeypatch.setattr(smoke,'request',request)
     result=smoke.run_standalone_smoke('http://127.0.0.1:8765')
     assert result['item_count']==1

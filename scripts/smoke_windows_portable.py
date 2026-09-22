@@ -324,7 +324,7 @@ def run_external_smoke(base: str) -> dict:
 
 def run_standalone_smoke(base: str) -> dict:
     """Check packaged prompt and cross-database import without invoking a cloud model."""
-    prompt = request(base, '/api/v2/library/standalone/prompt', raw=True).decode('utf-8')
+    prompt = request(base, '/api/v2/library/standalone/prompt', raw=True).decode('utf-8').replace('\r\n', '\n')
     result = json.loads(prompt.split('```json\n', 1)[1].split('\n```', 1)[0])
     values = dict(reviewer='CI 外網成果', note='完整成果合成驗證。', model_label='Synthetic JSON')
     def submit(operation):
