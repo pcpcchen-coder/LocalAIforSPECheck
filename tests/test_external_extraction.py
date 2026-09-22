@@ -228,3 +228,21 @@ def test_staged_package_survives_database_reopen(client):
     reopened=ExternalExtraction(original)
     assert reopened.view(reopened.package(doc['id'],package['id']))['received_count']==package['batch_count']
     assert reopened.activate(doc['id'],package['id'],values(package,acknowledge_warnings=True))['document']['item_count']>0
+
+
+def test_portable_external_smoke_uses_distinct_source_and_preserves_prior_document(client, monkeypatch):
+    from scripts import smoke_windows_portable as smoke
+    previous = upload(client, '額定電壓必須為 48 V。\n')
+
+    def request(_base, path, payload=None, *, method=None, raw=False, content_type='application/json', **_kwargs):
+        method = method or ('POST' if payload is not None else 'GET')
+        content = payload if isinstance(payload, bytes) else json.dumps(payload).encode() if payload is not None else None
+        response = client.request(method, path, content=content, headers={'Content-Type':content_type})
+        assert response.status_code == 200, response.text
+        return response.content if raw else response.json()
+
+    monkeypatch.setattr(smoke, 'request', request)
+    external = smoke.run_external_smoke('http://127.0.0.1:8765')
+    assert external['document_id'] != previous['id']
+    assert ok(client.get(f'{BASE}/documents/{previous["id"]}')) == previous
+    assert external['item_count'] >= 1

@@ -286,7 +286,9 @@ def run_v2_smoke(base: str, process, timeout: int) -> dict:
 
 def run_external_smoke(base: str) -> dict:
     """Synthetic external JSON validates the packaged exchange, not ChatGPT quality."""
-    document = upload_v2(base, "standard", "external-standard.txt", "額定電壓必須為 48 V。\n")
+    # Distinct source bytes keep this independent of run_v2_smoke: library
+    # uploads deliberately deduplicate identical content even with new names.
+    document = upload_v2(base, "standard", "external-standard.txt", "外部匯入合成標準：額定直流電壓必須為 48 V。\n")
     prefix = f"/api/v2/documents/{document['id']}/external"
     package = request(base, prefix, {"expected_version": document["version"], "reviewer": "CI 合成驗收",
                                     "acknowledge_public": True, "blocks_per_batch": 1})
@@ -475,6 +477,8 @@ def run_smoke(args):
             report["checks"].extend(["v03_real_model_extraction", "v03_original_span_retention", "v03_no_silent_standard_exclusion",
                                      "v03_real_model_item_comparison", "v03_risk_and_cited_evidence", "v03_json_analysis_export"])
             report["external_extraction"] = run_external_smoke(base)
+            check(report["external_extraction"]["document_id"] != report["v03_workflow"]["standard_id"],
+                  "Independent external fixture unexpectedly reused the real-model standard")
             report["checks"].append("external_prompt_export_preview_import_activate")
             stop(root, env, process, session)
             process = session = None
