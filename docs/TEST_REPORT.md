@@ -5,10 +5,14 @@
 日期：2026-09-22。新增公開 HTTPS 規範下載、可跨資料庫的 .standard.json 完整成果、檔案／連結預覽及匯入，以及外網專用 Prompt。
 
 - 連結與完整成果 API／傳輸安全測試 49 項通過：HTTPS／port／帳密限制、私有與混合 DNS、重新導向逐站檢查、固定 IP 與原主機 SNI、NAT64 等特殊位址、大小上限、HTML／壓縮傳輸／不完整回應拒絕、去重、原子匯入、引文與型別、partial 正式匯入阻擋、內容變更指紋、來源紀錄及 Unicode 拒絕。
-- Linux Python 3.12 首輪 CI 全套：296 項、48 個子案例通過，1 項 Windows 專用測試依平台略過。
+- Linux Python 3.12 最終 CI 全套：297 項、48 個子案例通過，1 項 Windows 專用測試依平台略過。
 - 真實 Chromium + 真實後端／SQLite 通過：下載狀態、Prompt 下載、成果連結預覽、修改資料使預覽失效、partial 僅能預覽而不入庫、檔案方式去重、人工確認、重新載入、HTML 連結錯誤與 390px 視窗，無 page error。網路傳輸使用合成替身；本機匯入流程實際執行。
 - 舊版分批 ChatGPT 流程瀏覽器回歸通過；新介面截圖已檢視：[完整成果預覽](screenshots/link-import.png)。
-- Windows 成品驗證已擴充完整成果 Prompt／匯入／來源追溯／重啟保存；CI 另對此 repo 固定 commit 的公開合成檔案執行真實 HTTPS 規範及成果連結下載。發行前須通過既有真模型、覆核、匯出及啟停檢查。
+- Windows 成品驗證已擴充完整成果 Prompt／匯入／來源追溯／重啟保存；CI 另對此 repo 固定 commit 的公開合成檔案執行真實 HTTPS 規範及成果連結下載。本版已通過既有真模型、覆核、匯出及啟停檢查。
+
+發行來源 commit：`b17ecb8c9f230ae118f79e3a506540f60daf2007`。[六組跨平台 CI](https://github.com/pcpcchen-coder/LocalAIforSPECheck/actions/runs/35712497820) 全部通過；[Windows 成品建置與真實驗證](https://github.com/pcpcchen-coder/LocalAIforSPECheck/actions/runs/35712497868) 通過。Windows Python 3.11／3.12 及 Portable 的 3.13 為 298 項、48 個子案例通過；Linux／macOS 為 297 項、48 個子案例通過，1 項 Windows 專用測試略過。
+
+[v0.3.2 Release](https://github.com/pcpcchen-coder/LocalAIforSPECheck/releases/tag/windows-portable-v0.3.2-b17ecb8c) 已提供 ZIP、SHA256SUMS.txt 與 portable-smoke-report.json。ZIP 為 41,504,846 bytes，SHA-256：`677d09323f349ca0efc7263619cca4d6ca950ffac10c0d397f67a477a4bf5691`。實際封裝已驗證 `standalone_prompt_preview_import_provenance`、`standalone_restart_persistence` 及 `live_https_standard_and_complete_result_import`：從固定來源 commit 下載本 repo 的公開合成規範及完整成果，預覽／保存成功，重啟仍保留來源與待人工確認狀態。ZIP 不含模型。
 
 Windows 首輪 CI 抓到成品檢查程式以 LF 分割下載的 Prompt 範例、未處理 CRLF；已正規化換行並以兩種換行的真實 API 回歸案例驗證，保留全部原有斷言。
 
