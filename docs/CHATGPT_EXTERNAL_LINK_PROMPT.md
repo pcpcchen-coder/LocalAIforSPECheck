@@ -70,7 +70,7 @@
 
 standard.name 必填（240 字內），其餘 standard 欄位都是字串（各 5,000 字內）。source_url 填實際來源 HTTPS 連結，不含帳號、密碼、查詢金鑰或暫時存取 token；附件或無安全公開連結時填空字串。不要填成果下載網址充當原規範來源。
 
-coverage.status 只有 complete 或 partial。只有確實讀完並保留整份文件可比對原文時才填 complete。任何未讀章節、缺頁、漏表格或未完成部分都填 partial，description（8,000 字內）列明已讀與未讀範圍、OCR／圖表限制。系統不會把 partial 成果開放給產品分析；不能只為了通過匯入而改成 complete。complete 也只是你的範圍聲明，仍須人工覆核。
+coverage.status 只有 complete 或 partial。只有確實讀完並保留整份文件可比對原文時才填 complete。任何未讀章節、缺頁、漏表格或未完成部分都填 partial，description（8,000 字內）列明已讀與未讀範圍、OCR／圖表限制。partial 成果只能預覽，不能正式匯入文件庫或開放給產品分析；不能只為了通過匯入而改成 complete。complete 也只是你的範圍聲明，仍須人工覆核。
 
 每檔最多 16 MB、2,000 個區塊、20,000 個項目；每區塊最多 200 個項目。每個項目文字欄位最多 20,000 字。block.id 必須唯一，只用英文、數字、底線、連字號；location 必填且最多 500 字。
 

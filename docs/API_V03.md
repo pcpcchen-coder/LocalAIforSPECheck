@@ -82,6 +82,6 @@ preview/import 的 values：`{expected_version:包版本,reviewer,note,model_lab
 - `POST /api/v2/library/standalone/preview`、`/import`：multipart `file`（一份完整成果）、`values`（JSON 文字）。
 - `POST /api/v2/library/standalone-link/preview`、`/import`：JSON，含 `url`、選填 `filename` 與操作欄位。
 
-操作欄位：`reviewer`、`model_label`、`note` 必填；import 另須 preview 回傳的 `preview_sha256`、`acknowledge_warnings: true`。預覽只回傳名稱、數量、coverage、warnings、sample_items（最多 10）與重用狀態，不写文件库；import 回傳 document。連結保存重新下載，位元組或操作內容不同回 409。格式錯誤回 400；完整成果每檔 16 MB。file 與 link 入口不得混用預覽指紋。
+操作欄位：`reviewer`、`model_label`、`note` 必填；import 另須 preview 回傳的 `preview_sha256`、`acknowledge_warnings: true`。預覽只回傳名稱、數量、coverage、warnings、sample_items（最多 10）與重用狀態，不写文件库；import 回傳 document。連結保存重新下載，位元組或操作內容不同回 409。格式錯誤或正式匯入 partial 成果回 400；partial 可以 preview，但不寫入文件庫。完整成果每檔 16 MB。file 與 link 入口不得混用預覽指紋。
 
 完整成果格式與限制見 [Prompt](CHATGPT_EXTERNAL_LINK_PROMPT.md) 和 [合成範例](../examples/external-extraction/complete.standard.json)。此格式不含原系統的 document_id／package_id，不適用於舊批次 `.result.json`。

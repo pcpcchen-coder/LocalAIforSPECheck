@@ -71,6 +71,12 @@ app = create_app()
                 page.locator('#prepared-url').fill('https://fixtures.example/result.json')
                 page.locator('#prepared-reviewer').fill('合成驗收人')
                 page.locator('#prepared-model').fill('ChatGPT（合成驗收）')
+                partial=json.loads(sample);partial['coverage'].update(status='partial',description='尚缺附錄')
+                (temp/'result.json').write_text(json.dumps(partial,ensure_ascii=False),encoding='utf-8')
+                page.locator('#prepared-preview').click()
+                expect(page.locator('#prepared-result')).to_contain_text('外部聲明尚未完成')
+                expect(page.locator('#prepared-save')).to_be_disabled()
+                (temp/'result.json').write_bytes(sample)
                 page.locator('#prepared-preview').click()
                 expect(page.locator('#prepared-status')).to_contain_text('已等待')
                 expect(page.locator('#prepared-save')).to_be_enabled()
@@ -104,7 +110,7 @@ app = create_app()
                 expect(page.locator('#library-link-status')).to_contain_text('連結回傳網頁')
                 assert not errors, errors
                 print(json.dumps(dict(passed=True,checks=['link_download_status','prompt_download','result_link_preview',
-                    'preview_invalidation','390px','manual_confirmation','reload','file_import_dedup','link_error'],page_errors=errors),ensure_ascii=False))
+                    'partial_preview_only','preview_invalidation','390px','manual_confirmation','reload','file_import_dedup','link_error'],page_errors=errors),ensure_ascii=False))
                 browser.close()
         except Exception:
             log.flush();print((temp/'app.log').read_text(encoding='utf-8')[-5000:]);raise

@@ -222,8 +222,8 @@ async function sendPrepared(commit) {
  if(commit){clearPrepared();showDialog("prepared-dialog",false);await loadLibrary();await openDocument(data.document.id);
   notify(data.reused?"相同成果已在文件庫，已開啟既有項目與確認紀錄。":"成果已匯入。請核對原始規範、轉錄範圍及每項要求，再確認文件。");return;}
  preparedState.preview=data;
- $("#prepared-result").innerHTML=`<div class="notice subtle"><strong>${esc(data.name)}</strong><p>${data.block_count} 個原文區塊 · ${data.item_count} 個項目 · ${data.unresolved_count} 個待處理</p><p>${data.coverage.status==="complete"?"外部聲明已完整處理，仍待人工確認":"外部聲明尚未完成：匯入後不能確認供分析使用"}${data.reused?" · 相同成果已在文件庫，將開啟既有紀錄":""}</p></div>${data.warnings.slice(0,30).map(w=>`<p class="helper">${esc(w)}</p>`).join("")}<h3>項目預覽（最多 10 筆）</h3>${data.sample_items.map(i=>`<article class="item-card">${tag(KIND[i.kind]||i.kind,i.kind)}<strong>${esc(i.name)}</strong><p>${esc(i.location)}</p><blockquote>${esc(i.quote)}</blockquote></article>`).join("")}`;
- $("#prepared-save").disabled=false;
+ $("#prepared-result").innerHTML=`<div class="notice subtle"><strong>${esc(data.name)}</strong><p>${data.block_count} 個原文區塊 · ${data.item_count} 個項目 · ${data.unresolved_count} 個待處理</p><p>${data.coverage.status==="complete"?"外部聲明已完整處理，仍待人工確認":"外部聲明尚未完成：只能預覽，請補齊後再匯入"}${data.reused?" · 相同成果已在文件庫，將開啟既有紀錄":""}</p></div>${data.warnings.slice(0,30).map(w=>`<p class="helper">${esc(w)}</p>`).join("")}<h3>項目預覽（最多 10 筆）</h3>${data.sample_items.map(i=>`<article class="item-card">${tag(KIND[i.kind]||i.kind,i.kind)}<strong>${esc(i.name)}</strong><p>${esc(i.location)}</p><blockquote>${esc(i.quote)}</blockquote></article>`).join("")}`;
+ $("#prepared-save").disabled=data.coverage.status!=="complete";
 }
 function bindLinkImport() {
  handle("#library-link-form","submit",e=>{e.preventDefault();return busy($('button[type=submit]',e.target),async()=>{
@@ -239,7 +239,7 @@ function bindLinkImport() {
  });
  for(const id of ["prepared-file","prepared-url","prepared-filename","prepared-reviewer","prepared-model","prepared-note"])handle(`#${id}`,"input",clearPrepared);
  handle("#prepared-form","submit",e=>{e.preventDefault();return busy($("#prepared-preview"),()=>sendPrepared(false),"檢查中…");});
- handle("#prepared-save","click",e=>busy(e.currentTarget,()=>sendPrepared(true),"匯入中…").finally(()=>{$("#prepared-save").disabled=!preparedState.preview;}));
+ handle("#prepared-save","click",e=>busy(e.currentTarget,()=>sendPrepared(true),"匯入中…").finally(()=>{$("#prepared-save").disabled=!preparedState.preview||preparedState.preview.coverage.status!=="complete";}));
 }
 
 init().catch(error=>notify(error.message,true));

@@ -99,7 +99,7 @@ jobs:
 
           [獨立模型直連、校驗碼與手動下載說明](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/models/README.md)。既有 v0.2 使用者可搬移舊版模型，不必重新下載。
 
-          v0.3.2 新增公開 HTTPS 規範連結下載，以及外網 ChatGPT 完整成果（.standard.json）的檔案／連結匯入、預覽與人工確認。完整成果可帶到另一套資料庫使用；未完成的 partial 成果不能確認供分析。原始 PDF 的轉錄完整性仍須人工核對。
+          v0.3.2 新增公開 HTTPS 規範連結下載，以及外網 ChatGPT 完整成果（.standard.json）的檔案／連結匯入、預覽與人工確認。完整成果可帶到另一套資料庫使用；未完成的 partial 成果僅能預覽，補齊後才能匯入供分析。原始 PDF 的轉錄完整性仍須人工核對。
 
           [外網連結流程與專用 Prompt](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/docs/LINK_IMPORT.md)
 

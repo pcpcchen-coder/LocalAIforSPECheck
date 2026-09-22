@@ -137,4 +137,4 @@ flowchart TD
 
 `link_import.py` 使用標準庫實作受限 HTTPS 下載，DNS 每跳核對後固定 IP 至 TLS；`/library/link` 交由既有 upload／parser 去重。前端仍 connect-src self；公開下載由本機後端執行，不鬆綁本機模型 URL 規則。
 
-`standard_package.py` 支援 `local-specheck-standard-package`：自带 standard metadata、coverage、原文 blocks 與 items，不依賴舊資料庫識別碼。重用外部萃取的逐字引文／上下文／未涵蓋片段驗證；preview 不寫入，import 指紋核對後原子新增 ready、confirmed=false 文件及項目／audit，原始 JSON 以 UUID 儲存。external_content_sha256 去重，source_kind=external_transcription 明確標示轉錄來源；partial 不能確認。source_url 僅為資料，不觸發下載。快照沿用現有文件／項目複製機制。
+`standard_package.py` 支援 `local-specheck-standard-package`：自带 standard metadata、coverage、原文 blocks 與 items，不依賴舊資料庫識別碼。重用外部萃取的逐字引文／上下文／未涵蓋片段驗證；preview 不寫入，import 指紋核對後原子新增 ready、confirmed=false 文件及項目／audit，原始 JSON 以 UUID 儲存。external_content_sha256 去重，source_kind=external_transcription 明確標示轉錄來源；partial 僅供預覽，正式匯入前會拒絕。source_url 僅為資料，不觸發下載。快照沿用現有文件／項目複製機制。

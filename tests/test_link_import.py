@@ -172,11 +172,13 @@ def test_standalone_readonly_preview_atomic_import_confirm_and_dedup(client):
     assert ok(client.get('/api/v2/library'))['total']==1
 
 
-def test_partial_cannot_be_confirmed_even_in_batch(client):
+def test_partial_can_be_previewed_but_cannot_block_library_analysis(client):
     value=sample();value['coverage'].update(status='partial',description='尚缺附錄')
-    preview=ok(submit(client,value));doc=ok(submit(client,value,'import',preview_sha256=preview['preview_sha256'],acknowledge_warnings=True))['document']
-    response=client.post('/api/v2/library/confirm',json=settings(acknowledge_warnings=True,documents=[{'id':doc['id'],'expected_version':doc['version']}]))
+    preview=ok(submit(client,value))
+    assert preview['coverage']['status']=='partial'
+    response=submit(client,value,'import',preview_sha256=preview['preview_sha256'],acknowledge_warnings=True)
     assert response.status_code==400 and '完整' in response.json()['detail']
+    assert ok(client.get('/api/v2/library'))['total']==0
 
 
 @pytest.mark.parametrize('mutate', [

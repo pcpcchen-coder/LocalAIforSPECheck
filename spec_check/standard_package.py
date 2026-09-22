@@ -68,7 +68,7 @@ class StandardPackage:
         warnings = ['來源為外部提供的原文轉錄；系統只核對成果內引文，未驗證與原始 PDF 的一致性或全文完整性。',
                     '涵蓋範圍由外部填報：' + coverage['status'] + '；' + coverage['description']]
         if coverage['status'] == 'partial':
-            warnings.append('此成果尚未涵蓋完整文件，不能確認供產品分析使用。請在外網補齊後匯入完整成果。')
+            warnings.append('此成果尚未涵蓋完整文件，只能預覽；請在外網補齊後再匯入，避免未完成文件阻擋全庫分析。')
         warnings.extend(checked['warnings'])
         return value, sources, checked['items'], warnings, source_url
 
@@ -89,6 +89,8 @@ class StandardPackage:
                 return output
             if values.get('preview_sha256') != fingerprint:
                 raise ConflictError('成果內容、連結或操作資料已變更，請重新預覽後匯入。')
+            if value['coverage']['status'] != 'complete':
+                raise ValueError('成果尚未完整，只能預覽。請在外網補齊原文與項目後重新匯入。')
             if values.get('acknowledge_warnings') is not True:
                 raise ValueError('請先確認外部原文仍須人工核對。')
             if duplicate:

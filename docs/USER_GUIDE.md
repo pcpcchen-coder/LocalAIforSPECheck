@@ -158,4 +158,4 @@ JSON 不能一鍵匯回成可續作資料庫，也不包含所有原始二進位
 
 ## 規範連結與外網完整成果（v0.3.2）
 
-「標準文件庫」保留檔案上傳，另可貼上公開 HTTPS 規範連結。若已在外網用 ChatGPT 整理，按「匯入 ChatGPT 完整成果」，選 .standard.json 或成果下載連結，預覽後匯入並逐項確認。不必先匯入原 PDF 或建立萃取包；partial 成果不能確認供分析。詳見 [完整操作流程](LINK_IMPORT.md) 與 [專用 Prompt](CHATGPT_EXTERNAL_LINK_PROMPT.md)。
+「標準文件庫」保留檔案上傳，另可貼上公開 HTTPS 規範連結。若已在外網用 ChatGPT 整理，按「匯入 ChatGPT 完整成果」，選 .standard.json 或成果下載連結，預覽後匯入並逐項確認。不必先匯入原 PDF 或建立萃取包；partial 成果只能預覽，補齊後才可匯入供分析。詳見 [完整操作流程](LINK_IMPORT.md) 與 [專用 Prompt](CHATGPT_EXTERNAL_LINK_PROMPT.md)。
