@@ -34,8 +34,11 @@ def strict_json(raw):
             out[key] = value
         return out
     try:
-        return json.loads(raw.decode('utf-8-sig'), object_pairs_hook=pairs,
-                          parse_constant=lambda _: (_ for _ in ()).throw(ValueError('JSON 不可包含 NaN／Infinity。')))
+        value = json.loads(raw.decode('utf-8-sig'), object_pairs_hook=pairs,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError('JSON 不可包含 NaN／Infinity。')))
+        # Reject unpaired escaped surrogates before filenames, hashes or SQLite encoding.
+        encoded(value)
+        return value
     except (UnicodeError, json.JSONDecodeError, RecursionError) as exc:
         raise ValueError('無法讀取完整 UTF-8 JSON；請勿加入 Markdown 圍欄、說明文字或截斷內容。') from exc
 

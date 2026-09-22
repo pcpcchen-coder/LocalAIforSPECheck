@@ -74,3 +74,14 @@ preview/import 的 values：`{expected_version:包版本,reviewer,note,model_lab
 輸出格式由包內 `result.schema.json` 定義：format=`local-specheck-extraction-result`、schema_version=1，必須照抄 package_id/document_id/source_sha256/batch_id，blocks 恰含本批全部 id。每 block 有 items，每 item 為既有文字欄位（block_id 在外層）與 `context_evidence:[{block_id,quote}]`。主要引文與上下文引文須逐字存在於同一文件；context 中的疑似要求保守降為 unresolved，未涵蓋原文補 unresolved。
 
 文件版本改變或正在本地抽取、包已套用、來源雜湊不同皆拒絕套用。套用為單一資料庫交易；舊 index 及已建立分析快照不變。保存的是正規化項目及原始檔內容雜湊，不保存 ChatGPT 對話或原上傳 bytes。詳細操作與 Prompt 見 [EXTERNAL_EXTRACTION.md](EXTERNAL_EXTRACTION.md)。
+
+## v0.3.2 連結及完整成果
+
+- `POST /api/v2/library/link`：JSON `{url, filename?}`，公開 HTTPS 下載規範，回傳 document summary；同內容重用。
+- `GET /api/v2/library/standalone/prompt`：下載外網專用 Prompt。
+- `POST /api/v2/library/standalone/preview`、`/import`：multipart `file`（一份完整成果）、`values`（JSON 文字）。
+- `POST /api/v2/library/standalone-link/preview`、`/import`：JSON，含 `url`、選填 `filename` 與操作欄位。
+
+操作欄位：`reviewer`、`model_label`、`note` 必填；import 另須 preview 回傳的 `preview_sha256`、`acknowledge_warnings: true`。預覽只回傳名稱、數量、coverage、warnings、sample_items（最多 10）與重用狀態，不写文件库；import 回傳 document。連結保存重新下載，位元組或操作內容不同回 409。格式錯誤回 400；完整成果每檔 16 MB。file 與 link 入口不得混用預覽指紋。
+
+完整成果格式與限制見 [Prompt](CHATGPT_EXTERNAL_LINK_PROMPT.md) 和 [合成範例](../examples/external-extraction/complete.standard.json)。此格式不含原系統的 document_id／package_id，不適用於舊批次 `.result.json`。

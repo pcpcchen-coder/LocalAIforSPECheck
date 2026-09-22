@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "format": "local-specheck-standard-package",
+  "standard": {
+    "name": "合成示例規範",
+    "source_url": "",
+    "version": "",
+    "category": "",
+    "scope": "",
+    "region": ""
+  },
+  "coverage": {
+    "status": "complete",
+    "description": "合成示例，僅一條原文；正式輸出請填實際頁數、讀取章節、表格與附錄範圍，並交代缺漏。"
+  },
+  "blocks": [
+    {
+      "id": "B00001",
+      "location": "合成示例，第 1 條",
+      "text": "額定直流電壓必須為 48 V。",
+      "items": [
+        {
+          "name": "額定直流電壓",
+          "parameter": "額定直流電壓",
+          "value": "48",
+          "unit": "V",
+          "operator": "=",
+          "conditions": "",
+          "exceptions": "",
+          "test_method": "",
+          "criticality": "unknown",
+          "criticality_basis": "原文未交代差異造成的風險嚴重度。",
+          "quote": "額定直流電壓必須為 48 V。",
+          "kind": "requirement",
+          "context_evidence": []
+        }
+      ]
+    }
+  ]
+}

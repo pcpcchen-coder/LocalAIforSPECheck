@@ -132,3 +132,9 @@ flowchart TD
 `external_extraction.py` 管理 standard-only 萃取包、固定 Prompt、JSON schema、批次預覽、保存與套用；不呼叫雲端服務。`v2_external_package` 保存來源雜湊、Prompt 雜湊、文件基準版本及批次 manifest；`v2_external_batch` 暫存每批驗證後項目及內容雜湊。未收齊時不改文件 index；收齊後以同一交易建立新 `v2_item` index、更新文件與新增 audit。文件版本或原文改變即禁止舊包套用，套用清除舊 job_id，避免恢復舊抽取工作覆蓋新版。
 
 `context_evidence` 保存同文件跨章引文；本機比對優先讀取這些來源區塊，仍遵守上下文預算與保守判定。來源快照、JSON 報告與抽取歷程保留 external_source、操作者填報模型及雜湊。這些識別碼綁定原資料庫，不是任意文件之間的模糊對應。
+
+## 規範 URL 與完整成果（v0.3.2）
+
+`link_import.py` 使用標準庫實作受限 HTTPS 下載，DNS 每跳核對後固定 IP 至 TLS；`/library/link` 交由既有 upload／parser 去重。前端仍 connect-src self；公開下載由本機後端執行，不鬆綁本機模型 URL 規則。
+
+`standard_package.py` 支援 `local-specheck-standard-package`：自带 standard metadata、coverage、原文 blocks 與 items，不依賴舊資料庫識別碼。重用外部萃取的逐字引文／上下文／未涵蓋片段驗證；preview 不寫入，import 指紋核對後原子新增 ready、confirmed=false 文件及項目／audit，原始 JSON 以 UUID 儲存。external_content_sha256 去重，source_kind=external_transcription 明確標示轉錄來源；partial 不能確認。source_url 僅為資料，不觸發下載。快照沿用現有文件／項目複製機制。

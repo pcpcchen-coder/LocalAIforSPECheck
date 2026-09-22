@@ -1,6 +1,8 @@
 # 用 ChatGPT 萃取規範，再匯入本機系統
 
-適用 v0.3.1 以上。此流程讓外部模型處理你已確認可外送的標準文件；產品規格、相關性初篩與產品比對仍使用本機模型。標準整理好後可以重複供不同產品使用。
+**公司不能對外上傳，想直接把規範連結交給 ChatGPT？請改用 [外網連結與完整成果流程](LINK_IMPORT.md) 及 [專用 Prompt](CHATGPT_EXTERNAL_LINK_PROMPT.md)。該格式不綁定本機資料庫。**
+
+以下為原有分批流程，適用 v0.3.1 以上。此流程讓外部模型處理你已確認可外送的標準文件；產品規格、相關性初篩與產品比對仍使用本機模型。標準整理好後可以重複供不同產品使用。
 
 **完整 Prompt：[CHATGPT_STANDARD_EXTRACTION_PROMPT.md](CHATGPT_STANDARD_EXTRACTION_PROMPT.md)**。每個系統匯出的萃取包也內附相同內容的 `PROMPT.md`，不需要自行設計 JSON。
 

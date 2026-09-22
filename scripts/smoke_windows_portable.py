@@ -13,6 +13,7 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 import socket
 import subprocess
@@ -321,6 +322,43 @@ def run_external_smoke(base: str) -> dict:
     check(rows and rows[0]["external_source"]["package_id"] == package["id"], "External provenance missing")
     return dict(document_id=document["id"], package_id=package["id"], item_count=len(rows))
 
+def run_standalone_smoke(base: str) -> dict:
+    """Check packaged prompt and cross-database import without invoking a cloud model."""
+    prompt = request(base, '/api/v2/library/standalone/prompt', raw=True).decode('utf-8')
+    result = json.loads(prompt.split('```json\n', 1)[1].split('\n```', 1)[0])
+    values = dict(reviewer='CI 外網成果', note='完整成果合成驗證。', model_label='Synthetic JSON')
+    def submit(operation):
+        boundary = 'specheck-complete-' + uuid.uuid4().hex
+        body = (f'--{boundary}\r\nContent-Disposition: form-data; name="values"\r\n\r\n'.encode() +
+                json.dumps(values, ensure_ascii=False).encode() +
+                f'\r\n--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="complete.standard.json"\r\nContent-Type: application/json\r\n\r\n'.encode() +
+                json.dumps(result, ensure_ascii=False).encode() + f'\r\n--{boundary}--\r\n'.encode())
+        return request(base, '/api/v2/library/standalone/' + operation, body, content_type=f'multipart/form-data; boundary={boundary}')
+    preview = submit('preview')
+    values.update(preview_sha256=preview['preview_sha256'], acknowledge_warnings=True)
+    document = submit('import')['document']
+    check(document['source_kind'] == 'external_transcription' and not document['confirmed'], 'Standalone provenance/confirmation missing')
+    check(document['item_count'] == 1, 'Standalone item missing')
+    rows = request(base, f"/api/v2/documents/{document['id']}/items")['items']
+    check(rows[0]['external_source']['model_identity'] == 'user_reported', 'Standalone model provenance missing')
+    return dict(document_id=document['id'], content_sha256=document['external_content_sha256'], item_count=1)
+
+
+def run_public_link_smoke(base: str, source_commit: str) -> dict:
+    """Opt-in live HTTPS check against this repository's immutable synthetic fixtures."""
+    check(bool(re.fullmatch(r'[a-f0-9]{40}', source_commit)), 'Public link verification requires a commit SHA')
+    prefix = f'https://raw.githubusercontent.com/pcpcchen-coder/LocalAIforSPECheck/{source_commit}/examples/'
+    standard = request(base, '/api/v2/library/link', {'url': prefix + 'standard_a_48v.txt'}, timeout=120)
+    check(standard['role'] == 'standard' and standard.get('import_source'), 'Public standard download failed')
+    values = dict(url=prefix + 'external-extraction/complete.standard.json', reviewer='CI HTTPS 驗收',
+                  note='公開合成成果連結。', model_label='Synthetic JSON')
+    preview = request(base, '/api/v2/library/standalone-link/preview', values, timeout=120)
+    values.update(preview_sha256=preview['preview_sha256'], acknowledge_warnings=True)
+    imported = request(base, '/api/v2/library/standalone-link/import', values, timeout=120)
+    check(imported['document']['source_kind'] == 'external_transcription', 'Public result link import failed')
+    return dict(standard_id=standard['id'], result_id=imported['document']['id'], source_commit=source_commit)
+
+
 def verify_v2_restart(base: str, previous: dict):
     identifier = previous["analysis_id"]
     restored = request(base, f"/api/v2/analyses/{identifier}")
@@ -480,6 +518,11 @@ def run_smoke(args):
             check(report["external_extraction"]["document_id"] != report["v03_workflow"]["standard_id"],
                   "Independent external fixture unexpectedly reused the real-model standard")
             report["checks"].append("external_prompt_export_preview_import_activate")
+            report['standalone_extraction'] = run_standalone_smoke(base)
+            report['checks'].append('standalone_prompt_preview_import_provenance')
+            if args.public_link_ref:
+                report['public_link_import'] = run_public_link_smoke(base, args.public_link_ref)
+                report['checks'].append('live_https_standard_and_complete_result_import')
             stop(root, env, process, session)
             process = session = None
             process, session, base = start(root, env, log, args.startup_timeout, batch=True)
@@ -494,6 +537,11 @@ def run_smoke(args):
             external_doc = request(base, f"/api/v2/documents/{external['document_id']}")
             check(external_doc.get("external_package_id") == external["package_id"] and external_doc["item_count"] == external["item_count"], "External extraction lost on restart")
             report["checks"].append("external_extraction_restart_persistence")
+            standalone = report['standalone_extraction']
+            standalone_doc = request(base, f"/api/v2/documents/{standalone['document_id']}")
+            check(standalone_doc.get('external_content_sha256') == standalone['content_sha256'] and
+                  standalone_doc['item_count'] == 1 and not standalone_doc['confirmed'], 'Standalone result lost on restart')
+            report['checks'].append('standalone_restart_persistence')
             report["checks"].append("v03_restart_persistence")
             stop(root, env, process, session)
             process = session = None
@@ -530,6 +578,7 @@ def main():
     parser.add_argument("--inference-timeout", type=int, default=900)
     parser.add_argument("--workflow-phase-timeout", type=int, default=660,
                         help="Seconds per new extraction/screening/comparison phase (model timeout is 600 seconds)")
+    parser.add_argument('--public-link-ref', help='Opt-in live HTTPS downloads of public fixtures pinned to this repo commit')
     args = parser.parse_args()
     if sys.platform != "win32":
         parser.error("This integration check must run on Windows x64.")

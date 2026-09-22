@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import json
 import os
 import threading
@@ -131,7 +132,7 @@ class WorkflowService:
                               + where + ' ORDER BY rowid DESC LIMIT ? OFFSET ?', [*params, limit, offset]).fetchall()
         return dict(items=[json.loads(r['data']) for r in rows], total=total, offset=offset, limit=limit)
 
-    async def upload(self, file, role):
+    async def upload(self, file, role, source=None):
         name = (file.filename or 'document.txt').replace('\\', '/').split('/')[-1][:240]
         suffix = Path(name).suffix.lower()
         if suffix not in SUPPORTED_EXTENSIONS:
@@ -154,14 +155,19 @@ class WorkflowService:
                             metadata=dict(category='', scope='', version='', region=''),
                             index_status='not_started', confirmed=False, item_count=0, unresolved_count=0,
                             _stored_name=path.name)
+            if source:
+                document['import_source'] = source
             with self.lock:
                 # The same immutable bytes/role reuse the existing index and review.
                 duplicate = self._list('v2_document', where="json_extract(data,'$.sha256')=? AND json_extract(data,'$.role')=?",
                                        args=(document['sha256'], role), limit=1)['items']
                 if duplicate:
                     path.unlink(missing_ok=True)
+                    if source:
+                        self.store.put_many([self.audit(duplicate[0]['id'], 'link_import_reused', source=source)])
                     return dict(self.summary_doc(duplicate[0]), reused=True)
-                self.store.put_many([('v2_document', document, role), self.audit(identifier, 'uploaded', sha256=document['sha256'])])
+                self.store.put_many([('v2_document', document, role), self.audit(identifier,
+                    'link_imported' if source else 'uploaded', sha256=document['sha256'], source=source)])
             return self.summary_doc(document)
         except Exception:
             path.unlink(missing_ok=True)
@@ -309,6 +315,8 @@ class WorkflowService:
             for reference in identifiers:
                 doc = self.doc(reference['id'])
                 check_version(doc, reference)
+                if doc.get('external_coverage', {}).get('status') == 'partial':
+                    raise ValueError('外網成果未涵蓋完整文件；請先補齊後匯入完整成果，才能確認。')
                 if doc['index_status'] != 'ready' or not doc['item_count']:
                     raise ValueError('請先完成文件的規格項目抽取。')
                 doc.update(confirmed=True, confirmed_at=now(), confirmed_by=name, version=doc['version'] + 1)
@@ -934,8 +942,42 @@ class WorkflowService:
 
 def install_routes(app, service):
     from .external_extraction import ExternalExtraction, MAX_RESULT_BYTES, strict_json
+    from . import link_import
+    from .standard_package import StandardPackage
     router = APIRouter(prefix='/api/v2')
     external = ExternalExtraction(service)
+    standalone = StandardPackage(service)
+
+    @router.post('/library/link')
+    async def add_standard_link(values: dict = Body(...)):
+        downloaded = await run_in_threadpool(link_import.download, values.get('url'), filename=values.get('filename', ''))
+        return await service.upload(UploadFile(io.BytesIO(downloaded.data), filename=downloaded.filename),
+                                    'standard', downloaded.source)
+
+    @router.get('/library/standalone/prompt')
+    def standalone_prompt():
+        return FileResponse(Path(__file__).with_name('prompts') / 'CHATGPT_EXTERNAL_LINK_PROMPT.md',
+                            filename='CHATGPT_EXTERNAL_LINK_PROMPT.md', media_type='text/plain; charset=utf-8')
+
+    @router.post('/library/standalone/{operation}')
+    async def standalone_file(operation: str, file: UploadFile = File(...), values: str = Form(...)):
+        try:
+            if operation not in {'preview', 'import'}:
+                raise HTTPException(404)
+            raw = await file.read(MAX_RESULT_BYTES + 1)
+            settings = strict_json(values.encode('utf-8'))
+            if not isinstance(settings, dict):
+                raise ValueError('操作資料格式無效。')
+            return await run_in_threadpool(standalone.preview, raw, settings, None, operation == 'import')
+        finally:
+            await file.close()
+
+    @router.post('/library/standalone-link/{operation}')
+    def standalone_link(operation: str, values: dict = Body(...)):
+        if operation not in {'preview', 'import'}:
+            raise HTTPException(404)
+        downloaded = link_import.download(values.get('url'), result=True, filename=values.get('filename', ''))
+        return standalone.preview(downloaded.data, values, downloaded.source, operation == 'import')
 
     @router.get('/documents/{identifier}/external')
     def external_packages(identifier: str):
@@ -1030,7 +1072,8 @@ def install_routes(app, service):
         path = service.root / 'uploads' / doc['_stored_name']
         if not path.exists():
             raise HTTPException(404, '找不到原始檔案，請確認資料備份。')
-        return FileResponse(path, filename=doc['name'])
+        filename = doc['name'] + '.standard.json' if doc.get('source_kind') == 'external_transcription' else doc['name']
+        return FileResponse(path, filename=filename)
 
     @router.post('/documents/{identifier}/extract')
     def extract(identifier: str, values: dict = Body(default={})):

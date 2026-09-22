@@ -64,7 +64,7 @@ jobs:
           "PORTABLE_SMOKE_MODEL=$model" >> $env:GITHUB_ENV
       - name: Test model import, extracted ZIP, real inference, review, export and shutdown
         timeout-minutes: 35
-        run: python scripts/smoke_windows_portable.py --archive dist/LocalAIforSPECheck-Windows-x64.zip --report dist/portable-smoke-report.json --work-dir "$env:RUNNER_TEMP" --model-source "$env:PORTABLE_SMOKE_MODEL"
+        run: python scripts/smoke_windows_portable.py --archive dist/LocalAIforSPECheck-Windows-x64.zip --report dist/portable-smoke-report.json --work-dir "$env:RUNNER_TEMP" --model-source "$env:PORTABLE_SMOKE_MODEL" --public-link-ref "$env:GITHUB_SHA"
       - name: Keep small verification report
         if: always()
         uses: actions/upload-artifact@v4
@@ -99,7 +99,11 @@ jobs:
 
           [獨立模型直連、校驗碼與手動下載說明](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/models/README.md)。既有 v0.2 使用者可搬移舊版模型，不必重新下載。
 
-          v0.3.1 新增手動 ChatGPT 規範萃取：標準文件可下載含完整 Prompt 的萃取包，回傳 JSON 經逐字原文核對後分批保存，收齊後套用並人工確認。產品抽取與比對仍使用本機模型。
+          v0.3.2 新增公開 HTTPS 規範連結下載，以及外網 ChatGPT 完整成果（.standard.json）的檔案／連結匯入、預覽與人工確認。完整成果可帶到另一套資料庫使用；未完成的 partial 成果不能確認供分析。原始 PDF 的轉錄完整性仍須人工核對。
+
+          [外網連結流程與專用 Prompt](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/docs/LINK_IMPORT.md)
+
+          另支援手動 ChatGPT 規範萃取：標準文件可下載含完整 Prompt 的萃取包，回傳 JSON 經逐字原文核對後分批保存，收齊後套用並人工確認。產品抽取與比對仍使用本機模型。
 
           [外部萃取操作指南](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/docs/EXTERNAL_EXTRACTION.md) · [完整 Prompt](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/spec_check/prompts/CHATGPT_STANDARD_EXTRACTION_PROMPT.md)
 
