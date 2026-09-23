@@ -236,6 +236,8 @@ def copy_application(repository: Path, bundle: Path) -> None:
     for source in sorted((repository / "examples" / "external-extraction").glob("*")):
         if source.is_file() and source.suffix in {".json", ".md"}:
             copy_file(source, bundle / "examples" / "external-extraction" / source.name)
+    copy_file(repository / "examples" / "local-extraction" / "cases.json",
+              bundle / "app" / "examples" / "local-extraction" / "cases.json")
     copy_file(repository / "README.md", bundle / "README.md")
     for source in sorted((repository / "docs").glob("*.md")):
         copy_file(source, bundle / "docs" / source.name)

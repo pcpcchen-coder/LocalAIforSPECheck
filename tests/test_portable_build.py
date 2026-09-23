@@ -135,6 +135,8 @@ def fake_repository(path):
         "spec_check/app.py": "# app",
         "spec_check/static/index.html": "<html></html>",
         "spec_check/prompts/CHATGPT_STANDARD_EXTRACTION_PROMPT.md": "external extraction prompt",
+        "spec_check/prompts/LOCAL_ATOMIC_EXTRACTION_PROMPT.md": "local extraction prompt",
+        "examples/local-extraction/cases.json": "{}",
         "spec_check/__pycache__/app.pyc": "private cache",
         "spec_check/private.db": "private database",
         "data/projects/private.json": "private project",
@@ -165,6 +167,8 @@ def test_application_allowlist_excludes_private_data_and_build_artifacts(tmp_pat
     build.copy_application(repository, bundle)
     assert (bundle / "app/spec_check/app.py").is_file()
     assert (bundle / "app/spec_check/prompts/CHATGPT_STANDARD_EXTRACTION_PROMPT.md").read_text() == "external extraction prompt"
+    assert (bundle / "app/spec_check/prompts/LOCAL_ATOMIC_EXTRACTION_PROMPT.md").read_text() == "local extraction prompt"
+    assert (bundle / "app/examples/local-extraction/cases.json").read_text() == "{}"
     assert (bundle / "app/portable_launcher.py").is_file()
     assert (bundle / "app/download_model.py").is_file()
     assert (bundle / "Download_model.bat").is_file()

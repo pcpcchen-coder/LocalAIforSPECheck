@@ -33,7 +33,7 @@ def comparison(status="match", blocks=(), **overrides):
 class ExtractionTests(unittest.TestCase):
     def test_compound_items_preserve_independent_fields_and_exact_shared_source(self):
         block = {"id": "B1", "document_id": "S", "location": "第 1 頁", "text": "電壓48 V；工作溫度0–40°C。"}
-        items = [extracted(block["text"]), extracted(block["text"], name="工作溫度", parameter="工作溫度", value="0–40", unit="°C")]
+        items = [extracted(block["text"], operator=""), extracted(block["text"], name="工作溫度", parameter="工作溫度", value="0–40", unit="°C", operator="")]
         with patch.object(engine, "_request_json", return_value=response({"items": items})) as request:
             result = ae.extract_block(block, "standard", SETTINGS)
         self.assertEqual(result["coverage"], "complete")
@@ -46,7 +46,7 @@ class ExtractionTests(unittest.TestCase):
 
     def test_uncovered_text_is_losslessly_retained(self):
         block = {"id": "B", "text": "前提為戶內使用。\n電壓48 V；另須防火。"}
-        with patch.object(engine, "_request_json", return_value=response({"items": [extracted("電壓48 V")]})):
+        with patch.object(engine, "_request_json", return_value=response({"items": [extracted("電壓48 V", operator="")]})):
             result = ae.extract_block(block, "standard", SETTINGS)
         retained = [i["quote"] for i in result["items"] if i["kind"] == "unresolved"]
         self.assertEqual(retained, ["前提為戶內使用。\n", "；另須防火。"])

@@ -9,6 +9,7 @@ on:
       - 'models/README.md'
       - 'spec_check/**'
       - 'requirements*.txt'
+      - 'examples/local-extraction/**'
       - 'scripts/build_windows_portable.py'
       - 'scripts/smoke_windows_portable.py'
       - 'tests/**'
@@ -98,6 +99,10 @@ jobs:
           ZIP 包含可攜式 Python、所有 Python 套件、llama.cpp CPU 推論服務，**不含 GGUF 模型**。模型與程式分開下載，之後更新程式可保留原本的 data 與 models。首次下載完成後可離線運作，不需安裝 Python 或 LM Studio。
 
           [獨立模型直連、校驗碼與手動下載說明](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/models/README.md)。既有 v0.2 使用者可搬移舊版模型，不必重新下載。
+
+          v0.3.3 補強本機小模型原子萃取：逐步 Prompt 與正反例、抽取欄位的原文核對、漏數值／部分條件及例外檢查；不可靠結果保留為待確認。內附 16 個合成探針案例與評測模組，可比較模型但不宣告正式品質通過。
+
+          [本機 Prompt、操作及驗收指南](https://github.com/$env:GH_REPO/blob/$env:BUILD_SHA/docs/LOCAL_EXTRACTION_QUALITY.md)
 
           v0.3.2 新增公開 HTTPS 規範連結下載，以及外網 ChatGPT 完整成果（.standard.json）的檔案／連結匯入、預覽與人工確認。完整成果可帶到另一套資料庫使用；未完成的 partial 成果僅能預覽，補齊後才能匯入供分析。原始 PDF 的轉錄完整性仍須人工核對。
 
