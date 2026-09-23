@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "source_filename": "GB 39752-2024电动汽车供电设备安全要求.pdf",
+  "source_pdf_sha256": "dfb67101f8a884e74e9dd779c1e9083e14d080ccfb4881d7a1adebef1946077d",
+  "package_sha256": "c25eade65c955515107e60a6fa08b5d944c036175e58801a54c6817d5adb4fde",
+  "package_bytes": 760354,
+  "source_pages": 31,
+  "source_printed_pages": 23,
+  "blank_pdf_pages": [
+    2,
+    4,
+    30,
+    31
+  ],
+  "source_tables": 6,
+  "blocks": 172,
+  "raw_items": 498,
+  "raw_kind_counts": {
+    "context": 79,
+    "unresolved": 75,
+    "requirement": 344
+  },
+  "imported_items": 498,
+  "imported_kind_counts": {
+    "unresolved": 152,
+    "context": 2,
+    "requirement": 344
+  },
+  "context_reclassified": 77,
+  "checks": {
+    "json_parse": true,
+    "unique_block_ids": true,
+    "all_quotes_exact": true,
+    "all_context_quotes_exact": true,
+    "preview_http_200": true,
+    "import_http_200": true,
+    "roundtrip_blocks_equal": true,
+    "no_uncovered_source_items": true,
+    "import_remains_unconfirmed": true,
+    "duplicate_reuses_document": true
+  },
+  "coverage": {
+    "status": "complete",
+    "description": "已讀取附件31頁：封面1、目次3、前言5–6、正文7–27（印刷1–21）、規範性附錄A第28頁（印刷22）、參考文獻29（印刷23）；2、4、30、31為空白頁。保留全部文字內容與6張表格，表格按欄轉錄並核對影像；省略重複頁眉頁腳及装飾標誌，正文換行與字距不代表新增條件。跨頁條文合併並保留頁序；表2註b平方根由影像補回。complete僅指本份PDF原文覆蓋完整，不代表已取得其引用文件或已完成人工審核。引用標準缺少全文、原文內部用語差異均以unresolved保留，不自行推定產品不符合。系統會把含數字的context保守轉為待處理，屬額外人工審核事項。"
+  },
+  "application_commit": "a3e0d63ac2b36a1c4cbabe8d5aa4e7b5ee46b959",
+  "application_version": "0.3.2",
+  "limits": [
+    "API与資料庫驗證，不是語意正確率評測。",
+    "未測試本地模型產品比對，未宣稱符合性。",
+    "本次未取得引用標準全文；列為unresolved。",
+    "人工覆核尚未完成；complete是本PDF原文覆蓋聲明。"
+  ]
+}
