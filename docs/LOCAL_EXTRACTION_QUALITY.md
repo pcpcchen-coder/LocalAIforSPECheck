@@ -10,7 +10,7 @@
 |---|---|---|
 | 多條規則濃縮在短段落，沒有示範 | 五步整理流程、完整欄位定義、三組正反例 | 模型是否遵守，不能由 Prompt 長度推論 |
 | 關閉 structured output 時缺乏完整文字格式說明 | Prompt 明列全部 12 欄、字串型別、枚舉與 JSON 根結構 | 後端是否支援 JSON schema；不支援可關閉後測試 |
-| 引文存在，但欄位可以捏造／換算／改變等號 | value/unit/operator/conditions/exceptions/test_method 逐欄驗證為自身 quote 的連續原文；不符則清空該欄、整項 unresolved | 字串存在不代表參數對應正確 |
+| 引文存在，但欄位可以捏造／換算／改變等號 | value/unit/operator/conditions/exceptions/test_method 逐欄驗證為自身 quote 的連續原文；另檢查比較符號、否定詞及單位前綴邊界；不符則清空該欄、整項 unresolved | 字串存在不代表參數對應正確 |
 | 引用整段掩蓋漏掉另一個數值 | 檢查原文數值／編號是否出現在有引文支持的欄位中；缺少則新增保留整段的 unresolved | 相同數值的不同要求、純文字要求仍可能漏掉 |
 | 條件、例外被省略 | 偵測常見條件／例外詞而對應欄位為空時轉 unresolved | 啟發式不是完整語法分析，可能多報或漏報 |
 | 非數值功能被當背景 | 擴充「須、禁止、支援、required、prohibited」等背景防漏條件 | 模型把要求寫成其他形式仍可能漏判 |
@@ -95,4 +95,4 @@ macOS/Linux 使用 `.venv/bin/python`。可用參數：`--base-url http://127.0.
 
 這些是程式契約測試，不能當作 E4B／12B／Bonsai 的實測成績。Windows 發佈仍須通過既有 CI、Portable 組裝及真模型流程 smoke 後才提供新 ZIP；smoke 使用固定入門模型，也不是上述模型的品質驗收。
 
-2026-09-23 本機 Python 3.12 回歸結果：320 tests passed、48 subtests passed；1 項 Windows Job Objects 測試因作業系統不同跳過。語法編譯及評測 CLI 說明檢查通過；沒有連接使用者的本機模型。
+2026-09-23 本機 Python 3.12 回歸結果：324 tests passed、48 subtests passed；1 項 Windows Job Objects 測試因作業系統不同跳過。語法編譯及評測 CLI 說明檢查通過；沒有連接使用者的本機模型。

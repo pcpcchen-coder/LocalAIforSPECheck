@@ -53,6 +53,18 @@ def test_literal_condition_exception_and_operator_pass():
     assert result["items"][0]["kind"] == "requirement"
 
 
+@pytest.mark.parametrize("text,changes,field", [
+    ("輸出電壓<=48 V。", {"operator": "<"}, "operator"),
+    ("輸出電壓不大於48 V。", {"operator": "大於"}, "operator"),
+    ("Voltage shall not exceed 48 V.", {"operator": "exceed"}, "operator"),
+    ("輸出電壓48 mV。", {"unit": "V"}, "unit"),
+])
+def test_substring_cannot_drop_equality_negation_or_unit_prefix(text, changes, field):
+    result = extract(text, [item(text, **changes)])
+    assert result["items"][0]["kind"] == "unresolved"
+    assert result["items"][0][field] == ""
+
+
 def test_same_number_wrong_parameter_is_explicit_limit_not_false_claim_of_guard():
     text = "輸出電壓48 V；輸出電流48 A。"
     # A number-set guard cannot discover that the second 48 has a different meaning.

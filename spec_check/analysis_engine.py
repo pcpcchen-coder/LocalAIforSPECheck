@@ -142,14 +142,30 @@ _CONDITION = re.compile(r"如果|若|當|当|在[^。；;\n]{1,60}(?:下|時|时
 _EXCEPTION = re.compile(r"除非|除外|例外|但|不適用|不适用|擇一|择一|二選一|二选一|\b(?:unless|except|either)\b", re.I)
 
 
+def _literal_field_supported(field, value, quote):
+    if value not in quote:
+        return False
+    if field == "unit":
+        # V inside mV, A inside mA, or C inside °C is not a supported unit.
+        return re.search(r"(?<![A-Za-zµμΩ°])" + re.escape(value) + r"(?![A-Za-zµμΩ])", quote) is not None
+    if field == "operator":
+        # Do not accept '<' as a substring of '<=', nor drop a nearby negation.
+        for match in re.finditer(r"(?<![<>=!≤≥≠])" + re.escape(value) + r"(?![<>=!≤≥≠])", quote):
+            prefix = quote[:match.start()]
+            if not re.search(r"(?:不|未|無|无|非|不得|不能|不可|\bnot\s+|\bnever\s+)$", prefix, re.I):
+                return True
+        return False
+    return True
+
+
 def _guard_extracted_item(item):
     """Conservative lexical checks, not a semantic correctness certificate."""
     if item["kind"] not in ("requirement", "specification"):
         return []
     issues = []
     for field in _LITERAL_FIELDS:
-        if item[field] and item[field] not in item["quote"]:
-            issues.append(f"{field} 不是該項引文的連續原文，已清空可疑欄位")
+        if item[field] and not _literal_field_supported(field, item[field], item["quote"]):
+            issues.append(f"{field} 不是該項引文中完整且可核對的原文片段，已清空可疑欄位")
             item[field] = ""
     if not item["name"].strip() or not item["parameter"].strip():
         issues.append("項目名稱或參數為空")
